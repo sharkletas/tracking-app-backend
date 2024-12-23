@@ -1,0 +1,58 @@
+{
+  "hash": "d6723319",
+  "configHash": "96c85f62",
+  "lockfileHash": "a693818e",
+  "browserHash": "142863bd",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "948ec53b",
+      "needsInterop": true
+    },
+    "react-dom": {
+      "src": "../../node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "5b7cdf7f",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "02d58934",
+      "needsInterop": true
+    },
+    "react/jsx-runtime": {
+      "src": "../../node_modules/react/jsx-runtime.js",
+      "file": "react_jsx-runtime.js",
+      "fileHash": "e9290c96",
+      "needsInterop": true
+    },
+    "@shopify/polaris": {
+      "src": "../../node_modules/@shopify/polaris/build/esm/index.js",
+      "file": "@shopify_polaris.js",
+      "fileHash": "e77f2f17",
+      "needsInterop": false
+    },
+    "@shopify/polaris-icons": {
+      "src": "../../node_modules/@shopify/polaris-icons/dist/index.mjs",
+      "file": "@shopify_polaris-icons.js",
+      "fileHash": "a2ebafe1",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "e7e546ab",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chunk-S4CVHYIU": {
+      "file": "chunk-S4CVHYIU.js"
+    },
+    "chunk-UTEJFLXC": {
+      "file": "chunk-UTEJFLXC.js"
+    }
+  }
+}
