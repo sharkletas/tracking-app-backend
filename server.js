@@ -11,7 +11,7 @@ const port = process.env.PORT || 3000;
 
 // Configuración de CORS (debe estar al principio)
 app.use(cors({
-    origin: 'http://localhost:5173', // URL del frontend
+    origin: 'https://tracking-app-frontend-efny-d9kk3ufzu-sharkletas-projects.vercel.app/', // URL del frontend
     credentials: true,
 }));
 
