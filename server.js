@@ -141,6 +141,17 @@ cron.schedule('*/10 * * * *', async () => {
     }
 });
 
+// Endpoint para obtener todas las órdenes
+app.get('/api/orders', async (req, res) => {
+    try {
+        const orders = await db.collection('orders').find({}).toArray(); // Obtiene todas las órdenes
+        res.status(200).json(orders);
+    } catch (error) {
+        console.error('Error al obtener las órdenes:', error);
+        res.status(500).json({ message: 'Error al obtener las órdenes' });
+    }
+});
+
 // Iniciar el servidor
 app.listen(port, () => {
     console.log(`Servidor corriendo en http://localhost:${port}`);
