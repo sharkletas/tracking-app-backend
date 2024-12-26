@@ -34,7 +34,7 @@ function App() {
 
   // Llamada al backend para verificar el estado
 
-const API_URL = 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL;
 
 useEffect(() => {
     console.log('API URL:', API_URL); // Verifica que la variable se esté cargando
