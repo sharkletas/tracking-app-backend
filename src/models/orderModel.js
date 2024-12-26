@@ -24,11 +24,16 @@ const orderSchema = Joi.object({
       lastUpdated: Joi.date(),
     })
   ).default([]),
+  productStatus: Joi.array().items(Joi.string()).default(['Procesando Pedido']), // Nuevo campo
+  productsByLocation: Joi.object().pattern(
+    Joi.string(),
+    Joi.number()
+  ).default({}), // Nuevo campo
   fulfillmentStatus: Joi.object({
     status: Joi.string().valid('fulfilled', 'unfulfilled', 'partial', 'restocked').required(),
     carrier: Joi.string().optional(),
     trackingNumber: Joi.string().optional(),
-  }).optional(), // Campo para datos de cumplimiento
+  }).optional(),
   currentStatus: Joi.object({
     status: Joi.string().required(),
     description: Joi.string().required(),
@@ -69,7 +74,7 @@ const orderSchema = Joi.object({
   updatedAt: Joi.date().default(() => new Date(), 'Fecha de actualización'),
 });
 
-// Función para validar la estructura de la orden
+
 const validateOrder = (orderData) => {
   return orderSchema.validate(orderData, { abortEarly: false });
 };

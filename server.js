@@ -106,40 +106,29 @@ cron.schedule('*/10 * * * *', async () => {
         const orders = await db.collection('orders').find({}).toArray();
 
         for (const order of orders) {
-            try {
-                const response = await fetch(
-                    `https://2b636b-a7.myshopify.com/admin/api/2024-10/orders/${order.shopifyOrderId}.json`,
-                    {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
-                        },
-                    }
-                );
+            const productsByLocation = {};
 
-                if (!response.ok) {
-                    console.error(`Error al obtener datos de Shopify para la orden ${order.shopifyOrderId}: ${response.statusText}`);
-                    continue;
+            // Agrupar productos por sucursal
+            order.orderDetails.products.forEach((product) => {
+                const location = product.fulfillmentLocation || 'Sin ubicación';
+                if (!productsByLocation[location]) {
+                    productsByLocation[location] = 0;
                 }
+                productsByLocation[location] += product.quantity;
+            });
 
-                const shopifyOrder = await response.json();
-                const fulfillmentStatus = shopifyOrder.order.fulfillment_status;
-
-                if (fulfillmentStatus === 'fulfilled') {
-                    console.log(`Orden ${order.shopifyOrderId} ha sido completada.`);
-                }
-
-                // Verifica y actualiza datos según sea necesario
-            } catch (error) {
-                console.error(`Error procesando la orden ${order.shopifyOrderId}:`, error);
-            }
+            // Actualizar productos agrupados en la base de datos
+            await db.collection('orders').updateOne(
+                { _id: order._id },
+                { $set: { productsByLocation } }
+            );
         }
         console.log('Verificación de cambios completada.');
     } catch (error) {
         console.error('Error general verificando cambios en órdenes:', error);
     }
 });
+
 
 // Endpoint para obtener todas las órdenes
 app.get('/api/orders', async (req, res) => {
