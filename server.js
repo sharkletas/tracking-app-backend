@@ -7,7 +7,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors'); // Importar cors al inicio
 const allowedOrigins = [
     'http://localhost:5173', // Frontend local para desarrollo
-    'https://tracking-app-frontend.vercel.app/' // Frontend en producción
+    'https://tracking-app-frontend.vercel.app' // Frontend en producción
 ];
 
 const app = express();

@@ -1,6 +1,9 @@
 # Dependencias de Node.js
 node_modules/
 
+# Remover el Frontend
+frontend/
+
 # Archivos sensibles
 .env
 
