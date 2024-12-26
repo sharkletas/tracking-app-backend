@@ -5,14 +5,26 @@ const fetch = global.fetch;
 const cron = require('node-cron');
 const bodyParser = require('body-parser');
 const cors = require('cors'); // Importar cors al inicio
+const allowedOrigins = [
+    'http://localhost:5173', // Frontend local para desarrollo
+    'https://tracking-app-frontend-efny-d9kk3ufzu-sharkletas-projects.vercel.app' // Frontend en producción
+];
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 // Configuración de CORS (debe estar al principio)
 app.use(cors({
-    origin: 'https://tracking-app-frontend-efny-d9kk3ufzu-sharkletas-projects.vercel.app/', // URL del frontend
-    credentials: true,
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true); // Permitir acceso
+        } else {
+            callback(new Error('Not allowed by CORS')); // Bloquear acceso
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Métodos permitidos
+    credentials: true, // Permitir cookies/sesiones si las necesitas
+    allowedHeaders: ['Content-Type', 'Authorization'] // Encabezados permitidos
 }));
 
 // Middlewares

@@ -34,7 +34,7 @@ function App() {
 
   // Llamada al backend para verificar el estado
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = 'https://tracking-app-backend-iab9.onrender.com';
 
 useEffect(() => {
     console.log('API URL:', API_URL); // Verifica que la variable se esté cargando
