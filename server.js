@@ -100,32 +100,29 @@ app.post('/webhook/orders/create', async (req, res) => {
 // Más rutas aquí, como /webhook/orders/updated, /webhook/orders/cancelled, etc.
 
 // Job Programado para Verificar Cambios
-cron.schedule('*/10 * * * *', async () => {
-    console.log('Iniciando verificación de cambios en órdenes...');
+cron.schedule('0 0 1 * *', async () => {
+    console.log('Sincronización automática de órdenes del último mes iniciada');
     try {
-        const orders = await db.collection('orders').find({}).toArray();
+        const now = moment();
+        const lastMonth = moment().subtract(1, 'month').startOf('month');
 
-        for (const order of orders) {
-            const productsByLocation = {};
+        const createdAtMin = lastMonth.toISOString();
+        const createdAtMax = now.endOf('month').toISOString();
 
-            // Agrupar productos por sucursal
-            order.orderDetails.products.forEach((product) => {
-                const location = product.fulfillmentLocation || 'Sin ubicación';
-                if (!productsByLocation[location]) {
-                    productsByLocation[location] = 0;
-                }
-                productsByLocation[location] += product.quantity;
-            });
+        const orders = await fetchShopifyOrders(createdAtMin, createdAtMax);
 
-            // Actualizar productos agrupados en la base de datos
+        for (const shopifyOrder of orders) {
+            const orderData = mapShopifyOrderToMongoModel(shopifyOrder);
             await db.collection('orders').updateOne(
-                { _id: order._id },
-                { $set: { productsByLocation } }
+                { shopifyOrderId: shopifyOrder.id.toString() },
+                { $set: orderData },
+                { upsert: true }
             );
         }
-        console.log('Verificación de cambios completada.');
+
+        console.log(`Sincronización automática completada: ${orders.length} órdenes procesadas`);
     } catch (error) {
-        console.error('Error general verificando cambios en órdenes:', error);
+        console.error('Error en la sincronización automática:', error);
     }
 });
 
