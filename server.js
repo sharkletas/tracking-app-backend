@@ -1,35 +1,35 @@
 require('dotenv').config();
 const express = require('express');
 const { MongoClient } = require('mongodb');
-const fetch = global.fetch;
 const cron = require('node-cron');
-const bodyParser = require('body-parser');
-const cors = require('cors'); // Importar cors al inicio
+const cors = require('cors');
+const { parse } = require('date-fns'); // Reemplaza moment.js con date-fns para manejar fechas
+
+const app = express();
+const port = process.env.PORT || 3000;
+
 const allowedOrigins = [
     'http://localhost:5173', // Frontend local para desarrollo
     'https://tracking-app-frontend.vercel.app' // Frontend en producción
 ];
 
-const app = express();
-const port = process.env.PORT || 3000;
-
-// Configuración de CORS (debe estar al principio)
+// Configuración de CORS
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true); // Permitir acceso
+            callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS')); // Bloquear acceso
+            callback(new Error('Not allowed by CORS'));
         }
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Métodos permitidos
-    credentials: true, // Permitir cookies/sesiones si las necesitas
-    allowedHeaders: ['Content-Type', 'Authorization'] // Encabezados permitidos
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 200 // Añadido para manejar OPTIONS request correctamente
 }));
 
 // Middlewares
-app.use(express.json()); // Parsear JSON
-app.use(bodyParser.urlencoded({ extended: true })); // Parsear datos de formularios
+app.use(express.json());
 
 // Conexión a MongoDB
 const uri = process.env.MONGODB_URI;
@@ -53,62 +53,76 @@ app.get('/health', (req, res) => {
     res.status(200).send('Servidor activo y saludable');
 });
 
+// Función para manejar inserciones en MongoDB
+async function insertOrder(orderData) {
+    try {
+        const result = await db.collection('orders').insertOne(orderData);
+        return result.insertedId;
+    } catch (error) {
+        throw error;
+    }
+}
+
+// Función para mapear una orden de Shopify a modelo de MongoDB
+function mapShopifyOrderToMongoModel(shopifyOrder) {
+    // Implementa esta función según tus necesidades
+    return {
+        shopifyOrderId: shopifyOrder.id.toString(),
+        shopifyOrderNumber: shopifyOrder.name,
+        shopifyOrderLink: `https://admin.shopify.com/store/${process.env.SHOPIFY_STORE_URL}/orders/${shopifyOrder.id}`,
+        paymentStatus: shopifyOrder.display_financial_status,
+        trackingInfo: [],
+        currentStatus: {
+            status: 'new',
+            description: 'Nueva Orden Creada',
+            updatedAt: new Date(),
+        },
+        statusHistory: [],
+        processingTimeInDual: 0,
+        flags: {
+            dualDelay: false,
+            deliveryDelay: false,
+        },
+        orderDetails: {
+            products: shopifyOrder.line_items.map((item) => ({
+                productId: item.id.toString(),
+                name: item.name,
+                quantity: item.quantity,
+                weight: item.grams || 0,
+                purchaseType: 'Pre-Orden', // Por defecto; se ajusta manualmente
+            })),
+            totalWeight: shopifyOrder.total_weight || 0,
+            providerInfo: [],
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    };
+}
+
 app.post('/webhook/orders/create', async (req, res) => {
     const shopifyOrder = req.body;
-
     try {
-        const orderData = {
-            shopifyOrderId: shopifyOrder.id.toString(),
-            shopifyOrderNumber: shopifyOrder.name,
-            shopifyOrderLink: `https://admin.shopify.com/store/${process.env.SHOPIFY_STORE_URL}/orders/${shopifyOrder.id}`,
-            paymentStatus: shopifyOrder.display_financial_status,
-            trackingInfo: [],
-            currentStatus: {
-                status: 'new',
-                description: 'Nueva Orden Creada',
-                updatedAt: new Date(),
-            },
-            statusHistory: [],
-            processingTimeInDual: 0,
-            flags: {
-                dualDelay: false,
-                deliveryDelay: false,
-            },
-            orderDetails: {
-                products: shopifyOrder.line_items.map((item) => ({
-                    productId: item.id.toString(),
-                    name: item.name,
-                    quantity: item.quantity,
-                    weight: item.grams || 0,
-                    purchaseType: 'Pre-Orden', // Por defecto; se ajusta manualmente
-                })),
-                totalWeight: shopifyOrder.total_weight || 0,
-                providerInfo: [],
-            },
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        };
-
-        await db.collection('orders').insertOne(orderData);
-        res.status(201).json({ message: 'Orden creada exitosamente' });
-    } catch (error) {
-        console.error('Error procesando la orden:', error);
+        const orderData = mapShopifyOrderToMongoModel(shopifyOrder);
+        const insertedId = await insertOrder(orderData);
+        res.status(201).json({ message: 'Orden creada exitosamente', id: insertedId });
+    } catch (error) {    
         res.status(500).json({ error: 'Error procesando la orden' });
     }
 });
 
-// Más rutas aquí, como /webhook/orders/updated, /webhook/orders/cancelled, etc.
+
 
 // Job Programado para Verificar Cambios
 cron.schedule('0 0 1 * *', async () => {
     console.log('Sincronización automática de órdenes del último mes iniciada');
     try {
-        const now = moment();
-        const lastMonth = moment().subtract(1, 'month').startOf('month');
+        const now = new Date();
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
         const createdAtMin = lastMonth.toISOString();
-        const createdAtMax = now.endOf('month').toISOString();
+        const createdAtMax = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
+        // Aquí deberías implementar fetchShopifyOrders
         const orders = await fetchShopifyOrders(createdAtMin, createdAtMax);
 
         for (const shopifyOrder of orders) {
@@ -130,7 +144,7 @@ cron.schedule('0 0 1 * *', async () => {
 // Endpoint para obtener todas las órdenes
 app.get('/api/orders', async (req, res) => {
     try {
-        const orders = await db.collection('orders').find({}).toArray(); // Obtiene todas las órdenes
+        const orders = await db.collection('orders').find({}).toArray();
         res.status(200).json(orders);
     } catch (error) {
         console.error('Error al obtener las órdenes:', error);
@@ -138,7 +152,15 @@ app.get('/api/orders', async (req, res) => {
     }
 });
 
+// Middleware de manejo de errores
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Algo se rompió!');
+});
+
 // Iniciar el servidor
 app.listen(port, () => {
     console.log(`Servidor corriendo en http://localhost:${port}`);
 });
+
+// Nota: Implementa la función fetchShopifyOrders según tus necesidades.

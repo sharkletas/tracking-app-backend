@@ -24,11 +24,11 @@ const orderSchema = Joi.object({
       lastUpdated: Joi.date(),
     })
   ).default([]),
-  productStatus: Joi.array().items(Joi.string()).default(['Procesando Pedido']), // Nuevo campo
+  productStatus: Joi.array().items(Joi.string()).default(['Procesando Pedido']),
   productsByLocation: Joi.object().pattern(
     Joi.string(),
     Joi.number()
-  ).default({}), // Nuevo campo
+  ).default({}), // Mantén este valor predeterminado como un objeto vacío
   fulfillmentStatus: Joi.object({
     status: Joi.string().valid('fulfilled', 'unfulfilled', 'partial', 'restocked').required(),
     carrier: Joi.string().optional(),
@@ -70,8 +70,8 @@ const orderSchema = Joi.object({
       })
     ).default([]),
   }).required(),
-  createdAt: Joi.date().default(() => new Date(), 'Fecha de creación'),
-  updatedAt: Joi.date().default(() => new Date(), 'Fecha de actualización'),
+  createdAt: Joi.date().default(() => new Date()), // Elimina el texto adicional
+  updatedAt: Joi.date().default(() => new Date()), // Elimina el texto adicional
 });
 
 
