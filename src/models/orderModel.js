@@ -7,14 +7,14 @@ const orderSchema = Joi.object({
   shopifyOrderLink: Joi.string().required(),
   orderType: Joi.string().valid('Desconocido', 'Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Desconocido'),
   paymentStatus: Joi.string().valid(
-    'AUTHORIZED', 
-    'PAID', 
-    'PARTIALLY_PAID', 
-    'PARTIALLY_REFUNDED', 
-    'PENDING', 
-    'REFUNDED', 
-    'VOIDED'
-  ).allow(null).default('PENDING'),
+    'Authorized', 
+    'Paid', 
+    'Partially paid', 
+    'Partially refunded', 
+    'Pending', 
+    'Refunded', 
+    'Voided'
+  ).allow(null).default('Pending'),
   trackingInfo: Joi.object({
     orderTracking: Joi.object({
       carrier: Joi.string().optional(),
