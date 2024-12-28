@@ -1,11 +1,11 @@
 const Joi = require('joi');
 
-// Esquema de validación para las órdenes
+
 const orderSchema = Joi.object({
   shopifyOrderId: Joi.string().required(),
   shopifyOrderNumber: Joi.string().required(),
   shopifyOrderLink: Joi.string().required(),
-    orderType: Joi.string().allow('Desconocido').default('Desconocido'),
+  orderType: Joi.string().valid('Desconocido', 'Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Desconocido'),
   paymentStatus: Joi.string().valid(
     'AUTHORIZED', 
     'PAID', 
@@ -15,25 +15,34 @@ const orderSchema = Joi.object({
     'REFUNDED', 
     'VOIDED'
   ).allow(null).default('PENDING'),
-  trackingInfo: Joi.array().items(
-    Joi.object({
-      carrier: Joi.string().required(),
-      trackingNumber: Joi.string().required(),
-      status: Joi.string(),
-      description: Joi.string(),
-      lastUpdated: Joi.date(),
-    })
-  ).default([]),
+  trackingInfo: Joi.object({
+    orderTracking: Joi.object({
+      carrier: Joi.string().optional(),
+      trackingNumber: Joi.string().optional()
+    }).default({}),
+    productTrackings: Joi.array().items(
+      Joi.object({
+        productId: Joi.string().required(), // Esto sería un ObjectId en MongoDB
+        carrier: Joi.string().required(),
+        trackingNumber: Joi.string().required(),
+        status: Joi.string().valid('En Ruta a Sucursal', 'Recibido por Sharkletas').default('En Ruta a Sucursal'),
+        consolidatedTrackingNumber: Joi.string().optional()
+      })
+    ).default([])
+  }).default({
+    orderTracking: {},
+    productTrackings: []
+  }),
   productStatus: Joi.array().items(Joi.string()).default(['Procesando Pedido']),
   productsByLocation: Joi.object().pattern(
     Joi.string(),
     Joi.number()
-  ).default({}), // Mantén este valor predeterminado como un objeto vacío
+  ).default({}),
   fulfillmentStatus: Joi.object({
-    status: Joi.string().valid('fulfilled', 'unfulfilled', 'partial', 'restocked').required(),
+    status: Joi.string().valid('fulfilled', 'unfulfilled', 'partial', 'restocked').default('unfulfilled'),
     carrier: Joi.string().optional(),
     trackingNumber: Joi.string().optional(),
-  }).optional(),
+  }).default({ status: 'unfulfilled' }),
   currentStatus: Joi.object({
     status: Joi.string().required(),
     description: Joi.string().required(),
@@ -54,24 +63,16 @@ const orderSchema = Joi.object({
   orderDetails: Joi.object({
     products: Joi.array().items(
       Joi.object({
-        productId: Joi.string().required(),
+        productId: Joi.string().required(), // Esto sería un ObjectId en MongoDB
         name: Joi.string().required(),
         quantity: Joi.number().required(),
         weight: Joi.number().default(0),
         purchaseType: Joi.string().valid('Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Pre-Orden'),
       })
-    ).default([]),
-    totalWeight: Joi.number().default(0),
-    providerInfo: Joi.array().items(
-      Joi.object({
-        provider: Joi.string().required(),
-        poNumber: Joi.string().required(),
-        orderDate: Joi.date().required(),
-      })
-    ).default([]),
+    ).default([])
   }).required(),
-  createdAt: Joi.date().default(() => new Date()), // Elimina el texto adicional
-  updatedAt: Joi.date().default(() => new Date()), // Elimina el texto adicional
+  createdAt: Joi.date().default(() => new Date()),
+  updatedAt: Joi.date().default(() => new Date()),
 });
 
 
@@ -81,4 +82,5 @@ const validateOrder = (orderData) => {
 
 module.exports = {
   validateOrder,
+  orderSchema
 };
