@@ -7,14 +7,14 @@ const orderSchema = Joi.object({
   shopifyOrderLink: Joi.string().required(),
   orderType: Joi.string().valid('Desconocido', 'Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Desconocido'),
   paymentStatus: Joi.string().valid(
-    'Authorized', 
-    'Paid', 
-    'Partially paid', 
-    'Partially refunded', 
-    'Pending', 
-    'Refunded', 
-    'Voided'
-  ).allow(null).default('Pending'),
+  'authorized', 
+  'paid', 
+  'partially_paid', 
+  'partially_refunded', 
+  'pending', 
+  'refunded', 
+  'voided'
+).allow(null).default('pending'),
   trackingInfo: Joi.object({
     orderTracking: Joi.object({
       carrier: Joi.string().optional(),
@@ -63,11 +63,19 @@ const orderSchema = Joi.object({
   orderDetails: Joi.object({
     products: Joi.array().items(
       Joi.object({
-        productId: Joi.string().required(), // Esto sería un ObjectId en MongoDB
+        productId: Joi.string().optional(), // Esto sería un ObjectId en MongoDB
         name: Joi.string().required(),
         quantity: Joi.number().required(),
         weight: Joi.number().default(0),
         purchaseType: Joi.string().valid('Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Pre-Orden'),
+      })
+    ).default([]),
+    totalWeight: Joi.number().default(0), // Permitir totalWeight
+    providerInfo: Joi.array().items(
+      Joi.object({
+        provider: Joi.string().required(),
+        poNumber: Joi.string().required(),
+        orderDate: Joi.date().required(),
       })
     ).default([])
   }).required(),

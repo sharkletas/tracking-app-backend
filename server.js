@@ -100,7 +100,7 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
         shopifyOrderId: shopifyOrder.id.toString(),
         shopifyOrderNumber: shopifyOrder.name,
         shopifyOrderLink: `https://admin.shopify.com/store/${process.env.SHOPIFY_STORE_URL}/orders/${shopifyOrder.id}`,
-        paymentStatus: shopifyOrder.financial_status || 'Desconocido',
+        paymentStatus: shopifyOrder.financial_status || 'pending',
         trackingInfo: {
             orderTracking: {},
             productTrackings: []
@@ -173,10 +173,15 @@ async function updateProducts(orderData) {
                     await db.collection('productModels').insertOne(value);
                 }
             } else {
-                await db.collection('productModels').updateOne(
-                    { productId: product.productId },
-                    { $addToSet: { orders: orderData.shopifyOrderId } }
-                );
+                // Verificar si la orden ya está en la lista de órdenes del producto
+                if (!existingProduct.orders.includes(orderData.shopifyOrderId)) {
+                    await db.collection('productModels').updateOne(
+                        { productId: product.productId },
+                        { $push: { orders: orderData.shopifyOrderId } }
+                    );
+                } else {
+                    logger.info(`Orden ${orderData.shopifyOrderId} ya existe para el producto ${product.productId}.`);
+                }
             }
         } catch (error) {
             logger.error('Error al manejar producto:', error);
