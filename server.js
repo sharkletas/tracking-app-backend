@@ -136,7 +136,7 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
 }
 
 //Requerir validación de Order Model para cada request
-const { validateOrder } = require('./orderModel');
+const { validateOrder } = require('./src/models/orderModel');
 
 app.post('/webhook/orders/create', async (req, res) => {
     const shopifyOrder = req.body;
