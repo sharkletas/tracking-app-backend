@@ -28,7 +28,7 @@ app.use(cors({
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization']
     optionsSuccessStatus: 200 // Añadido para manejar OPTIONS request correctamente
 }));
 
@@ -103,12 +103,11 @@ async function insertOrder(orderData) {
 
 // Función para mapear una orden de Shopify a modelo de MongoDB
 function mapShopifyOrderToMongoModel(shopifyOrder) {
-    // Implementa esta función según tus necesidades
     return {
         shopifyOrderId: shopifyOrder.id.toString(),
         shopifyOrderNumber: shopifyOrder.name,
         shopifyOrderLink: `https://admin.shopify.com/store/${process.env.SHOPIFY_STORE_URL}/orders/${shopifyOrder.id}`,
-        paymentStatus: shopifyOrder.display_financial_status,
+        paymentStatus: shopifyOrder.financial_status || 'Desconocido',
         trackingInfo: [],
         currentStatus: {
             status: 'new',
@@ -122,18 +121,19 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
             deliveryDelay: false,
         },
         orderDetails: {
-            products: shopifyOrder.line_items.map((item) => ({
+            products: (shopifyOrder.line_items || []).map((item) => ({
                 productId: item.id.toString(),
                 name: item.name,
                 quantity: item.quantity,
                 weight: item.grams || 0,
-                purchaseType: 'Pre-Orden', // Por defecto; se ajusta manualmente
+                purchaseType: 'Pre-Orden' // Por defecto, se ajustará manualmente
             })),
             totalWeight: shopifyOrder.total_weight || 0,
             providerInfo: [],
         },
-        createdAt: new Date(),
+        createdAt: new Date(shopifyOrder.created_at),
         updatedAt: new Date(),
+        orderType: 'Desconocido' // Establecer como 'Desconocido' por defecto, para ser actualizado manualmente
     };
 }
 

@@ -5,16 +5,16 @@ const orderSchema = Joi.object({
   shopifyOrderId: Joi.string().required(),
   shopifyOrderNumber: Joi.string().required(),
   shopifyOrderLink: Joi.string().required(),
+    orderType: Joi.string().allow('Desconocido').default('Desconocido'),
   paymentStatus: Joi.string().valid(
-    'AUTHORIZED',
-    'EXPIRED',
-    'PAID',
-    'PARTIALLY_PAID',
-    'PARTIALLY_REFUNDED',
-    'PENDING',
-    'REFUNDED',
+    'AUTHORIZED', 
+    'PAID', 
+    'PARTIALLY_PAID', 
+    'PARTIALLY_REFUNDED', 
+    'PENDING', 
+    'REFUNDED', 
     'VOIDED'
-  ).required(),
+  ).allow(null).default('PENDING'),
   trackingInfo: Joi.array().items(
     Joi.object({
       carrier: Joi.string().required(),
