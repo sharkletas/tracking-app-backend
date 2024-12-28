@@ -8,6 +8,8 @@ const { parse } = require('date-fns'); // Reemplaza moment.js con date-fns para 
 const app = express();
 const port = process.env.PORT || 3000;
 
+app.set('trust proxy', true);
+
 const allowedOrigins = [
     'http://localhost:5173', // Frontend local para desarrollo
     'https://tracking-app-frontend.vercel.app' // Frontend en producción
