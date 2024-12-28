@@ -118,14 +118,14 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
         },
         orderDetails: {
             products: (shopifyOrder.line_items || []).map((item) => ({
-                productId: item.id.toString(),
+                productId: item.id ? item.id.toString() : `temp_${item.variant_id || Date.now()}`, // Manejo de product_id null
                 name: item.name,
                 quantity: item.quantity,
                 weight: item.grams || 0,
                 purchaseType: 'Pre-Orden' // Por defecto, se ajustará manualmente
             })),
             totalWeight: shopifyOrder.total_weight || 0,
-            providerInfo: [],
+            providerInfo: [], // Este debería ser manualmente actualizado
         },
         createdAt: new Date(shopifyOrder.created_at),
         updatedAt: new Date(),
@@ -168,9 +168,10 @@ async function updateProducts(orderData) {
                 };
                 const { error, value } = validateProduct(productData);
                 if (error) {
-                    throw new Error(`Error al validar el producto: ${error.details.map(detail => detail.message).join(', ')}`);
+                    logger.error(`Error al validar el producto ${product.productId}:`, error.details.map(detail => detail.message).join(', '));
+                } else {
+                    await db.collection('productModels').insertOne(value);
                 }
-                await db.collection('productModels').insertOne(value);
             } else {
                 await db.collection('productModels').updateOne(
                     { productId: product.productId },
@@ -192,23 +193,38 @@ async function fetchShopifyOrders(createdAtMin, createdAtMax, page = 1) {
         throw new Error('Faltan credenciales de Shopify');
     }
 
-    const ordersUrl = `https://${shopifyStoreUrl}/admin/api/2023-01/orders.json?created_at_min=${createdAtMin}&created_at_max=${createdAtMax}&status=any&limit=250&page=${page}`;
+    const baseQuery = `created_at_min=${createdAtMin}&created_at_max=${createdAtMax}&status=any&limit=250`;
+    let ordersUrl = `https://${shopifyStoreUrl}/admin/api/2023-01/orders.json?${baseQuery}`;
 
-    try {
-        const response = await fetch(ordersUrl, {
+    let allOrders = [];
+    let nextLink = ordersUrl; // Inicializa con la URL base
+
+    while (nextLink) {
+        const response = await fetch(nextLink, {
             headers: {
                 'X-Shopify-Access-Token': shopifyAccessToken,
             }
         });
+
         if (!response.ok) {
-            throw new Error(`Error al obtener órdenes de Shopify: ${response.statusText}`);
+            const errorBody = await response.text();
+            throw new Error(`Error al obtener órdenes de Shopify: ${response.statusText} - ${errorBody}`);
         }
+
         const data = await response.json();
-        return data.orders || [];
-    } catch (error) {
-        logger.error('Error al obtener órdenes de Shopify:', error);
-        throw error;
+        allOrders = allOrders.concat(data.orders);
+
+        // Shopify usa encabezados para la paginación
+        const linkHeader = response.headers.get('link');
+        if (linkHeader) {
+            const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+            nextLink = nextMatch ? nextMatch[1] : null;
+        } else {
+            nextLink = null; // No hay más páginas
+        }
     }
+
+    return allOrders;
 }
 
 // Job Programado para Verificar Cambios
@@ -221,21 +237,9 @@ cron.schedule('*/10 * * * *', async () => {
         const createdAtMin = tenMinutesAgo.toISOString();
         const createdAtMax = now.toISOString();
         
-        let page = 1;
-        let allOrders = [];
-        let hasMore = true;
-
-        while (hasMore) {
-            const orders = await fetchShopifyOrders(createdAtMin, createdAtMax, page);
-            allOrders = allOrders.concat(orders);
-            hasMore = orders.length === 250; // Shopify limita a 250 por página
-            if (hasMore) {
-                page++;
-                await sleep(500); // Añade este retardo de 500ms (0.5 segundos) entre peticiones
-            }
-        }
-
-        for (const shopifyOrder of allOrders) {
+        const orders = await fetchShopifyOrders(createdAtMin, createdAtMax);
+        
+        for (const shopifyOrder of orders) {
             try {
                 const orderData = mapShopifyOrderToMongoModel(shopifyOrder);
                 const orderId = await updateOrder(orderData);
@@ -246,7 +250,7 @@ cron.schedule('*/10 * * * *', async () => {
             }
         }
 
-        logger.info(`Sincronización automática completada: ${allOrders.length} órdenes procesadas`);
+        logger.info(`Sincronización automática completada: ${orders.length} órdenes procesadas`);
     } catch (error) {
         logger.error('Error en la sincronización automática:', error);
     }
@@ -285,19 +289,7 @@ app.post('/api/sync-orders', async (req, res) => {
         const createdAtMin = lastMonth.toISOString();
         const createdAtMax = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
-        let page = 1;
-        let allOrders = [];
-        let hasMore = true;
-
-        while (hasMore) {
-            const orders = await fetchShopifyOrders(createdAtMin, createdAtMax, page);
-            allOrders = allOrders.concat(orders);
-            hasMore = orders.length === 250;
-            if (hasMore) {
-                page++;
-                await sleep(500);
-            }
-        }
+        const allOrders = await fetchShopifyOrders(createdAtMin, createdAtMax); // Usa la función actualizada
 
         let processedCount = 0;
         for (const shopifyOrder of allOrders) {

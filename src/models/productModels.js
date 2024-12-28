@@ -1,7 +1,7 @@
 const Joi = require('joi');
 
 const productSchema = Joi.object({
-  productId: Joi.string().required(), // Esto sería un ObjectId en MongoDB
+  productId: Joi.string().optional(), // Esto sería un ObjectId en MongoDB
   name: Joi.string().required(),
   weight: Joi.number().default(0),
   orders: Joi.array().items(Joi.string()).default([]), // Referencias a ordenes
