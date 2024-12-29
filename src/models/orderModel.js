@@ -5,7 +5,7 @@ const orderSchema = Joi.object({
   shopifyOrderId: Joi.string().required(),
   shopifyOrderNumber: Joi.string().required(),
   shopifyOrderLink: Joi.string().required(),
-  orderType: Joi.string().valid('Desconocido', 'Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Desconocido'),
+  orderType: Joi.string().valid('Por Definir', 'Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Por Definir'),
   paymentStatus: Joi.string().valid(
   'authorized', 
   'paid', 

@@ -129,7 +129,7 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
         },
         createdAt: new Date(shopifyOrder.created_at),
         updatedAt: new Date(),
-        orderType: 'Desconocido'
+        orderType: 'Por Definir'
     };
 
     // Validación de la orden
@@ -347,4 +347,3 @@ process.on('SIGTERM', async () => {
 });
 
 module.exports = app; // Exportar la app para pruebas o uso en otros scripts si es necesario
-       
