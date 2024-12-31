@@ -236,7 +236,7 @@ async function updateProducts(orderData) {
 }
 
 // Fetch de órdenes desde Shopify
-async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null, page = 1) {
+async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null) {
     const shopifyAccessToken = process.env.SHOPIFY_ACCESS_TOKEN;
     const shopifyStoreUrl = process.env.SHOPIFY_STORE_URL;
     
@@ -253,7 +253,7 @@ async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null, page
         createdAtMax = now.toISOString();
     }
 
-    const baseQuery = `created_at_min=${createdAtMin}&created_at_max=${createdAtMax}&status=any&limit=250&page=${page}`;
+    const baseQuery = `created_at_min=${createdAtMin}&created_at_max=${createdAtMax}&status=any&limit=250`;
     let ordersUrl = `https://${shopifyStoreUrl}/admin/api/2023-01/orders.json?${baseQuery}`;
 
     logger.info('URL de consulta a Shopify:', ordersUrl);
@@ -275,7 +275,7 @@ async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null, page
         }
 
         const data = await response.json();
-        logger.info(`Órdenes obtenidas en la página ${page}:`, data.orders.length);
+        logger.info(`Órdenes obtenidas:`, data.orders.length);
         allOrders = allOrders.concat(data.orders);
 
         const linkHeader = response.headers.get('link');
@@ -285,7 +285,6 @@ async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null, page
         } else {
             nextLink = null;
         }
-        page++;
     }
 
     logger.info('Total de órdenes obtenidas de Shopify:', allOrders.length);
