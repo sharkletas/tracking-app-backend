@@ -339,7 +339,11 @@ app.post('/api/sync-orders', async (req, res) => {
         const createdAtMin = lastMonth.toISOString();
         const createdAtMax = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
-        const allOrders = await fetchShopifyOrders(createdAtMin, createdAtMax); // Usa la función actualizada
+        logger.info('Shopify Access Token:', process.env.SHOPIFY_ACCESS_TOKEN);
+        logger.info('Shopify Store URL:', process.env.SHOPIFY_STORE_URL);
+
+        const allOrders = await fetchShopifyOrders(createdAtMin, createdAtMax);
+        logger.info(`Número de órdenes obtenidas de Shopify: ${allOrders.length}`);
 
         let processedCount = 0;
         for (const shopifyOrder of allOrders) {
@@ -353,6 +357,7 @@ app.post('/api/sync-orders', async (req, res) => {
             }
         }
 
+        logger.info(`Sincronización manual completada: ${processedCount} órdenes procesadas`);
         res.status(200).json({ message: `Sincronización completada, ${processedCount} órdenes procesadas` });
     } catch (error) {
         logger.error('Error al sincronizar órdenes manualmente:', error);
