@@ -1,4 +1,3 @@
-// productModels.js
 const Joi = require('joi');
 const { productStatusSchema } = require('./statusModels');
 

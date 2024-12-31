@@ -52,10 +52,10 @@ const connectToMongoDB = async () => {
     try {
         const client = new MongoClient(uri);
         await client.connect();
-        console.log('Conectado a MongoDB Atlas');
+        logger.info('Conectado a MongoDB Atlas');
         db = client.db();
     } catch (error) {
-        console.error('Error conectando a MongoDB:', error);
+        logger.error('Error conectando a MongoDB:', error);
         process.exit(1);
     }
 };
@@ -93,7 +93,10 @@ app.get('/health', (req, res) => {
 });
 
 // Importación de modelos actualizados
-const { validateOrder, validateProduct, validateTrackingNumber, orderStatusSchema, productStatusSchema } = require('./src/models/orderModel');
+const { validateOrder, orderSchema } = require('./src/models/orderModel');
+const { validateProduct } = require('./src/models/productModels');
+const { validateTrackingNumber } = require('./src/models/trackingNumbersModels');
+const { orderStatusSchema, productStatusSchema } = require('./src/models/statusModels');
 
 // Función para mapear una orden de Shopify a modelo de MongoDB
 function mapShopifyOrderToMongoModel(shopifyOrder) {
@@ -136,11 +139,16 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
         orderType: 'Por Definir'
     };
 
+    logger.info('validateOrder:', validateOrder); // Verifica que la función validateOrder está definida
+    logger.info('orderData antes de validar:', JSON.stringify(orderData, null, 2)); // Loguea los datos de la orden antes de la validación
+
     const { error, value: validatedOrder } = validateOrder(orderData);
     if (error) {
+        logger.error(`Error al validar la orden: ${error.details.map(detail => detail.message).join(', ')}`);
         throw new Error(`Error al validar la orden: ${error.details.map(detail => detail.message).join(', ')}`);
     }
 
+    logger.info('Orden validada exitosamente'); // Loguea que la orden fue validada sin errores
     return validatedOrder;
 }
 

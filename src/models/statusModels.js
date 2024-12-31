@@ -1,4 +1,3 @@
-// statusModels.js
 const Joi = require('joi');
 
 // Estados a nivel de producto antes de consolidación
