@@ -1,18 +1,28 @@
+// productModels.js
 const Joi = require('joi');
+const { productStatusSchema } = require('./statusModels');
 
 const productSchema = Joi.object({
-  productId: Joi.string().optional(), // Esto sería un ObjectId en MongoDB
+  productId: Joi.string().optional(),
   name: Joi.string().required(),
   weight: Joi.number().default(0),
-  orders: Joi.array().items(Joi.string()).default([]), // Referencias a ordenes
+  orders: Joi.array().items(Joi.string()).default([]),
   trackingNumbers: Joi.array().items(
     Joi.object({
       trackingNumber: Joi.string().required(),
       carrier: Joi.string().required(),
-      status: Joi.string().valid('En Ruta a Sucursal', 'Recibido por Sharkletas').default('En Ruta a Sucursal'),
-      consolidatedTrackingNumber: Joi.string().optional()
+      status: productStatusSchema.required().status,
+      consolidatedTrackingNumber: Joi.string().optional(),
+      supplierTrackingNumber: Joi.string().optional()
     })
-  ).default([])
+  ).default([]),
+  purchaseType: Joi.string().valid('Pre-Orden', 'Entrega Inmediata', 'Reemplazo').required(),
+  supplierPO: Joi.string().when('purchaseType', {
+    is: 'Pre-Orden',
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional()
+  }),
+  localInventory: Joi.boolean().default(false)
 });
 
 const validateProduct = (productData) => {

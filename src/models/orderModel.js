@@ -1,5 +1,5 @@
 const Joi = require('joi');
-
+const { orderStatusSchema, productStatusSchema } = require('./statusModels');
 
 const orderSchema = Joi.object({
   shopifyOrderId: Joi.string().required(),
@@ -7,14 +7,14 @@ const orderSchema = Joi.object({
   shopifyOrderLink: Joi.string().required(),
   orderType: Joi.string().valid('Por Definir', 'Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Por Definir'),
   paymentStatus: Joi.string().valid(
-  'authorized', 
-  'paid', 
-  'partially_paid', 
-  'partially_refunded', 
-  'pending', 
-  'refunded', 
-  'voided'
-).allow(null).default('pending'),
+    'authorized', 
+    'paid', 
+    'partially_paid', 
+    'partially_refunded', 
+    'pending', 
+    'refunded', 
+    'voided'
+  ).allow(null).default('pending'),
   trackingInfo: Joi.object({
     orderTracking: Joi.object({
       carrier: Joi.string().optional(),
@@ -25,7 +25,7 @@ const orderSchema = Joi.object({
         productId: Joi.string().required(), // Esto sería un ObjectId en MongoDB
         carrier: Joi.string().required(),
         trackingNumber: Joi.string().required(),
-        status: Joi.string().valid('En Ruta a Sucursal', 'Recibido por Sharkletas').default('En Ruta a Sucursal'),
+        status: productStatusSchema.required().status,
         consolidatedTrackingNumber: Joi.string().optional()
       })
     ).default([])
@@ -33,7 +33,7 @@ const orderSchema = Joi.object({
     orderTracking: {},
     productTrackings: []
   }),
-  productStatus: Joi.array().items(Joi.string()).default(['Procesando Pedido']),
+  // Se elimina productStatus ya que ahora se maneja a nivel de producto dentro de orderDetails
   productsByLocation: Joi.object().pattern(
     Joi.string(),
     Joi.number()
@@ -43,18 +43,8 @@ const orderSchema = Joi.object({
     carrier: Joi.string().optional(),
     trackingNumber: Joi.string().optional(),
   }).default({ status: 'unfulfilled' }),
-  currentStatus: Joi.object({
-    status: Joi.string().required(),
-    description: Joi.string().required(),
-    updatedAt: Joi.date().required(),
-  }).required(),
-  statusHistory: Joi.array().items(
-    Joi.object({
-      status: Joi.string().required(),
-      description: Joi.string().required(),
-      updatedAt: Joi.date().required(),
-    })
-  ).default([]),
+  currentStatus: Joi.alternatives().try(orderStatusSchema, productStatusSchema).required(),
+  statusHistory: Joi.array().items(Joi.alternatives().try(orderStatusSchema, productStatusSchema)).default([]),
   processingTimeInDual: Joi.number().default(0),
   flags: Joi.object({
     dualDelay: Joi.boolean().default(false),
@@ -68,9 +58,16 @@ const orderSchema = Joi.object({
         quantity: Joi.number().required(),
         weight: Joi.number().default(0),
         purchaseType: Joi.string().valid('Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Pre-Orden'),
+        supplierPO: Joi.string().when('purchaseType', {
+          is: 'Pre-Orden',
+          then: Joi.string().required(),
+          otherwise: Joi.string().optional()
+        }),
+        localInventory: Joi.boolean().default(false),
+        status: Joi.array().items(productStatusSchema).default([{ status: 'Por Procesar', updatedAt: () => new Date() }])
       })
     ).default([]),
-    totalWeight: Joi.number().default(0), // Permitir totalWeight
+    totalWeight: Joi.number().default(0),
     providerInfo: Joi.array().items(
       Joi.object({
         provider: Joi.string().required(),
@@ -82,7 +79,6 @@ const orderSchema = Joi.object({
   createdAt: Joi.date().default(() => new Date()),
   updatedAt: Joi.date().default(() => new Date()),
 });
-
 
 const validateOrder = (orderData) => {
   return orderSchema.validate(orderData, { abortEarly: false });
