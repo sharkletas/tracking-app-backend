@@ -136,8 +136,10 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
                 quantity: item.quantity,
                 weight: item.grams || 0,
                 purchaseType: 'Pre-Orden',
-                status: [{ status: 'Por Procesar', updatedAt: now }],
-                supplierPO: item.supplierPO || null,
+                // Ajuste para el campo status
+                status: { status: 'Por Procesar', updatedAt: now },
+                // Ajuste para el campo supplierPO
+                supplierPO: item.supplierPO ? item.supplierPO.toString() : '',
                 localInventory: false
             })),
             totalWeight: shopifyOrder.total_weight || 0,
