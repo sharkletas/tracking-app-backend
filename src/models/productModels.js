@@ -10,7 +10,7 @@ const productSchema = Joi.object({
     Joi.object({
       trackingNumber: Joi.string().required(),
       carrier: Joi.string().required(),
-      status: productStatusSchema.required().status,
+      status: productStatusSchema.required(), // Cambio aquí
       consolidatedTrackingNumber: Joi.string().optional(),
       supplierTrackingNumber: Joi.string().optional()
     })

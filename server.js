@@ -9,6 +9,12 @@ const fetch = require('node-fetch');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Importación de modelos actualizados
+const { validateOrder, orderSchema } = require('./src/models/orderModel');
+const { validateProduct } = require('./src/models/productModels');
+const { validateTrackingNumber } = require('./src/models/trackingNumbersModels');
+const { orderStatusSchema, productStatusSchema } = require('./src/models/statusModels');
+
 app.set('trust proxy', true);
 
 const allowedOrigins = [
@@ -76,6 +82,13 @@ const logger = winston.createLogger({
     ]
 });
 
+// Logging para verificar que todas las importaciones están definidas correctamente
+logger.info('validateOrder:', validateOrder !== undefined);
+logger.info('validateProduct:', validateProduct !== undefined);
+logger.info('validateTrackingNumber:', validateTrackingNumber !== undefined);
+logger.info('orderStatusSchema:', orderStatusSchema !== undefined);
+logger.info('productStatusSchema:', productStatusSchema !== undefined);
+
 const rateLimit = require('express-rate-limit');
 
 // Shopify's rate limit is 2 requests per second per store, but we'll use a conservative limit here
@@ -92,14 +105,10 @@ app.get('/health', (req, res) => {
     res.status(200).send('Servidor activo y saludable');
 });
 
-// Importación de modelos actualizados
-const { validateOrder, orderSchema } = require('./src/models/orderModel');
-const { validateProduct } = require('./src/models/productModels');
-const { validateTrackingNumber } = require('./src/models/trackingNumbersModels');
-const { orderStatusSchema, productStatusSchema } = require('./src/models/statusModels');
-
 // Función para mapear una orden de Shopify a modelo de MongoDB
 function mapShopifyOrderToMongoModel(shopifyOrder) {
+    const now = new Date();
+
     const orderData = {
         shopifyOrderId: shopifyOrder.id.toString(),
         shopifyOrderNumber: shopifyOrder.name,
@@ -112,9 +121,9 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
         currentStatus: {
             status: 'Por Procesar',
             description: 'Nueva Orden Creada',
-            updatedAt: new Date(),
+            updatedAt: now,
         },
-        statusHistory: [{ status: 'Por Procesar', description: 'Nueva Orden Creada', updatedAt: new Date() }],
+        statusHistory: [{ status: 'Por Procesar', description: 'Nueva Orden Creada', updatedAt: now }],
         processingTimeInDual: 0,
         flags: {
             dualDelay: false,
@@ -127,7 +136,7 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
                 quantity: item.quantity,
                 weight: item.grams || 0,
                 purchaseType: 'Pre-Orden',
-                status: [{ status: 'Por Procesar', updatedAt: new Date() }],
+                status: [{ status: 'Por Procesar', updatedAt: now }],
                 supplierPO: item.supplierPO || null,
                 localInventory: false
             })),
@@ -135,33 +144,41 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
             providerInfo: [], // Este debería ser manualmente actualizado
         },
         createdAt: new Date(shopifyOrder.created_at),
-        updatedAt: new Date(),
+        updatedAt: now,
         orderType: 'Por Definir'
     };
 
-    logger.info('validateOrder:', validateOrder); // Verifica que la función validateOrder está definida
-    logger.info('orderData antes de validar:', JSON.stringify(orderData, null, 2)); // Loguea los datos de la orden antes de la validación
+    // Añadir logging para verificar la función de validación y los datos antes de validar
+    logger.info('validateOrder:', validateOrder);
+    logger.info('orderData antes de validar:', JSON.stringify(orderData, null, 2));
 
+    // Validar la orden
     const { error, value: validatedOrder } = validateOrder(orderData);
     if (error) {
-        logger.error(`Error al validar la orden: ${error.details.map(detail => detail.message).join(', ')}`);
+        // Loguear el error detalladamente
+        logger.error(`Error al validar la orden: ${JSON.stringify(error.details, null, 2)}`);
+        // Lanzar el error con un mensaje más detallado
         throw new Error(`Error al validar la orden: ${error.details.map(detail => detail.message).join(', ')}`);
     }
 
-    logger.info('Orden validada exitosamente'); // Loguea que la orden fue validada sin errores
+    // Loguear éxito en la validación
+    logger.info('Orden validada exitosamente');
     return validatedOrder;
 }
 
 // Insertar o actualizar orden
 async function updateOrder(orderData) {
     try {
+        logger.info('Datos de la orden a actualizar:', JSON.stringify(orderData, null, 2));
         const result = await db.collection('orderModels').updateOne(
             { shopifyOrderId: orderData.shopifyOrderId },
             { $set: orderData },
             { upsert: true }
         );
+        logger.info('Resultado de actualización de orden:', JSON.stringify(result, null, 2));
         return result.upsertedId || orderData.shopifyOrderId;
     } catch (error) {
+        logger.error('Error al actualizar la orden:', error);
         throw error;
     }
 }
@@ -170,30 +187,49 @@ async function updateOrder(orderData) {
 async function updateProducts(orderData) {
     for (const product of orderData.orderDetails.products) {
         try {
+            // Logging para ver los datos del producto antes de cualquier operación
+            logger.info('Datos del producto a actualizar:', JSON.stringify(product, null, 2));
+            
+            // Buscar si el producto ya existe en la base de datos
             const existingProduct = await db.collection('productModels').findOne({ productId: product.productId });
+            
             if (!existingProduct) {
+                // Si no existe, creamos un nuevo objeto de producto con los datos necesarios
                 const productData = {
                     ...product,
                     orders: [orderData.shopifyOrderId],
                     trackingNumbers: []
                 };
+                
+                // Logging antes de validar el producto
+                logger.info('Datos del producto a validar:', JSON.stringify(productData, null, 2));
+                
+                // Validar el producto contra el esquema
                 const { error, value } = validateProduct(productData);
                 if (error) {
-                    logger.error(`Error al validar el producto ${product.productId}:`, error.details.map(detail => detail.message).join(', '));
+                    // Si hay un error en la validación, lo registramos
+                    logger.error(`Error al validar el producto ${product.productId}:`, JSON.stringify(error.details, null, 2));
                 } else {
+                    // Si la validación es exitosa, insertamos el producto en la base de datos
                     await db.collection('productModels').insertOne(value);
+                    logger.info(`Producto ${product.productId} insertado exitosamente`);
                 }
             } else {
+                // Si el producto ya existe, verificamos si la orden ya está asociada
                 if (!existingProduct.orders.includes(orderData.shopifyOrderId)) {
+                    // Si no, añadimos la orden al array de órdenes del producto
                     await db.collection('productModels').updateOne(
                         { productId: product.productId },
                         { $push: { orders: orderData.shopifyOrderId } }
                     );
+                    logger.info(`Orden ${orderData.shopifyOrderId} añadida al producto ${product.productId}`);
                 } else {
+                    // Si ya existe, simplemente registramos que no se hizo nada
                     logger.info(`Orden ${orderData.shopifyOrderId} ya existe para el producto ${product.productId}.`);
                 }
             }
         } catch (error) {
+            // Capturamos cualquier error que ocurra durante el proceso y lo registramos
             logger.error('Error al manejar producto:', error);
         }
     }

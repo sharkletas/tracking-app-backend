@@ -1,6 +1,12 @@
 const Joi = require('joi');
 
-// Estados a nivel de producto antes de consolidación
+/**
+ * Esquema Joi para validar el estado de los productos antes de la consolidación.
+ * @typedef {Object} ProductStatusSchema
+ * @property {string} status - Estado del producto, requerido. Debe ser uno de los valores especificados.
+ * @property {string} [description] - Descripción opcional del estado.
+ * @property {Date} updatedAt - Fecha y hora de la actualización del estado, por defecto la fecha actual.
+ */
 const productStatusSchema = Joi.object({
   status: Joi.string().valid(
     'Por Procesar', 
@@ -17,7 +23,13 @@ const productStatusSchema = Joi.object({
   updatedAt: Joi.date().default(() => new Date()),
 });
 
-// Estados a nivel de orden después de la consolidación
+/**
+ * Esquema Joi para validar el estado de las órdenes después de la consolidación.
+ * @typedef {Object} OrderStatusSchema
+ * @property {string} status - Estado de la orden, requerido. Debe ser uno de los valores especificados.
+ * @property {string} [description] - Descripción opcional del estado.
+ * @property {Date} updatedAt - Fecha y hora de la actualización del estado, por defecto la fecha actual.
+ */
 const orderStatusSchema = Joi.object({
   status: Joi.string().valid(
     'Preparado', 

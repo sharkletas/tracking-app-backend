@@ -25,7 +25,7 @@ const orderSchema = Joi.object({
         productId: Joi.string().required(), // Esto sería un ObjectId en MongoDB
         carrier: Joi.string().required(),
         trackingNumber: Joi.string().required(),
-        status: productStatusSchema.required().status,
+        status: productStatusSchema.required(),
         consolidatedTrackingNumber: Joi.string().optional()
       })
     ).default([])
@@ -43,8 +43,8 @@ const orderSchema = Joi.object({
     carrier: Joi.string().optional(),
     trackingNumber: Joi.string().optional(),
   }).default({ status: 'unfulfilled' }),
-  currentStatus: Joi.alternatives().try(orderStatusSchema, productStatusSchema).required(),
-  statusHistory: Joi.array().items(Joi.alternatives().try(orderStatusSchema, productStatusSchema)).default([]),
+  currentStatus: Joi.alternatives().try(orderStatusSchema, productStatusSchema).required().default({ status: 'Por Procesar', description: 'Nueva Orden Creada', updatedAt: () => new Date() }),
+  statusHistory: Joi.array().items(Joi.alternatives().try(orderStatusSchema, productStatusSchema)).default([{ status: 'Por Procesar', description: 'Nueva Orden Creada', updatedAt: () => new Date() }]),
   processingTimeInDual: Joi.number().default(0),
   flags: Joi.object({
     dualDelay: Joi.boolean().default(false),
@@ -64,7 +64,7 @@ const orderSchema = Joi.object({
           otherwise: Joi.string().optional()
         }),
         localInventory: Joi.boolean().default(false),
-        status: Joi.array().items(productStatusSchema).default([{ status: 'Por Procesar', updatedAt: () => new Date() }])
+        status: productStatusSchema.required()
       })
     ).default([]),
     totalWeight: Joi.number().default(0),
