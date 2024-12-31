@@ -236,7 +236,7 @@ async function updateProducts(orderData) {
 }
 
 // Fetch de órdenes desde Shopify
-async function fetchShopifyOrders(createdAtMin, createdAtMax, page = 1) {
+async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null, page = 1) {
     const shopifyAccessToken = process.env.SHOPIFY_ACCESS_TOKEN;
     const shopifyStoreUrl = process.env.SHOPIFY_STORE_URL;
     
@@ -244,14 +244,26 @@ async function fetchShopifyOrders(createdAtMin, createdAtMax, page = 1) {
         throw new Error('Faltan credenciales de Shopify');
     }
 
-    const baseQuery = `created_at_min=${createdAtMin}&created_at_max=${createdAtMax}&status=any&limit=250`;
+    // Si no se proporcionan fechas, calculamos los últimos 30 días
+    const now = new Date();
+    if (!createdAtMin) {
+        createdAtMin = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)).toISOString();
+    }
+    if (!createdAtMax) {
+        createdAtMax = now.toISOString();
+    }
+
+    const baseQuery = `created_at_min=${createdAtMin}&created_at_max=${createdAtMax}&status=any&limit=250&page=${page}`;
     let ordersUrl = `https://${shopifyStoreUrl}/admin/api/2023-01/orders.json?${baseQuery}`;
+
+    logger.info('URL de consulta a Shopify:', ordersUrl);
 
     let allOrders = [];
     let nextLink = ordersUrl;
 
     while (nextLink) {
         const response = await fetch(nextLink, {
+            method: 'GET',
             headers: {
                 'X-Shopify-Access-Token': shopifyAccessToken,
             }
@@ -263,6 +275,7 @@ async function fetchShopifyOrders(createdAtMin, createdAtMax, page = 1) {
         }
 
         const data = await response.json();
+        logger.info(`Órdenes obtenidas en la página ${page}:`, data.orders.length);
         allOrders = allOrders.concat(data.orders);
 
         const linkHeader = response.headers.get('link');
@@ -272,8 +285,10 @@ async function fetchShopifyOrders(createdAtMin, createdAtMax, page = 1) {
         } else {
             nextLink = null;
         }
+        page++;
     }
 
+    logger.info('Total de órdenes obtenidas de Shopify:', allOrders.length);
     return allOrders;
 }
 
@@ -281,10 +296,10 @@ async function fetchShopifyOrders(createdAtMin, createdAtMax, page = 1) {
 cron.schedule('*/10 * * * *', async () => {
     logger.info('Sincronización automática de órdenes iniciada');
     try {
-                const now = new Date();
-        const tenMinutesAgo = new Date(now.getTime() - (10 * 60 * 1000)); // 10 minutos atrás
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 días atrás
 
-        const createdAtMin = tenMinutesAgo.toISOString();
+        const createdAtMin = thirtyDaysAgo.toISOString();
         const createdAtMax = now.toISOString();
         
         const orders = await fetchShopifyOrders(createdAtMin, createdAtMax);
