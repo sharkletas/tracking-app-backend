@@ -57,12 +57,8 @@ const orderSchema = Joi.object({
         name: Joi.string().required(),
         quantity: Joi.number().required(),
         weight: Joi.number().default(0),
-        purchaseType: Joi.string().valid('Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Pre-Orden'),
-        supplierPO: Joi.string().when('purchaseType', {
-          is: 'Pre-Orden',
-          then: Joi.string().required(),
-          otherwise: Joi.string().optional()
-        }),
+        purchaseType: Joi.string().valid('Por Definir', 'Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Por Definir'),
+        supplierPO: Joi.string().optional().allow(''), // Cambio aquí para hacer supplierPO opcional
         localInventory: Joi.boolean().default(false),
         status: productStatusSchema.required()
       })

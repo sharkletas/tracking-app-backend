@@ -130,31 +130,23 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
             deliveryDelay: false,
         },
         orderDetails: {
-            products: (shopifyOrder.line_items || []).map((item) => {
-                // Ajuste para el campo supplierPO
-                let supplierPO = item.supplierPO ? item.supplierPO.toString() : '';
-                
-                // Aseguramos que purchaseType sea 'Pre-Orden' por defecto
-                let purchaseType = 'Pre-Orden';
-
-                return {
-                    productId: item.id ? item.id.toString() : `temp_${item.variant_id || Date.now()}`,
-                    name: item.name,
-                    quantity: item.quantity,
-                    weight: item.grams || 0,
-                    purchaseType: purchaseType,
-                    // Ajuste para el campo status
-                    status: { status: 'Por Procesar', updatedAt: now },
-                    supplierPO: supplierPO,
-                    localInventory: false
-                };
-            }),
+            products: (shopifyOrder.line_items || []).map((item) => ({
+                productId: item.id ? item.id.toString() : `temp_${item.variant_id || Date.now()}`,
+                name: item.name,
+                quantity: item.quantity,
+                weight: item.grams || 0,
+                purchaseType: 'Por Definir', // Valor predeterminado que el usuario cambiará
+                // Ajuste para el campo status
+                status: { status: 'Por Procesar', updatedAt: now },
+                supplierPO: item.supplierPO ? item.supplierPO.toString() : '', // Ahora es opcional
+                localInventory: false
+            })),
             totalWeight: shopifyOrder.total_weight || 0,
             providerInfo: [] // Este debería ser manualmente actualizado
         },
         createdAt: new Date(shopifyOrder.created_at),
         updatedAt: now,
-        orderType: 'Por Definir' // Inicialmente definimos el orderType como 'Por Definir'
+        orderType: 'Por Definir' // Valor predeterminado
     };
 
     // Añadir logging para verificar la función de validación y los datos antes de validar
