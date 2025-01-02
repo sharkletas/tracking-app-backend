@@ -1,11 +1,33 @@
 const Joi = require('joi');
 const { orderStatusSchema, productStatusSchema } = require('./statusModels');
+const { STATUS } = require('./statusModels');
 
+/**
+ * Esquema Joi para validar la estructura de una orden.
+ * @typedef {Object} OrderSchema
+ * @property {string} shopifyOrderId - Identificador de la orden en Shopify, requerido.
+ * @property {string} shopifyOrderNumber - Número de orden en Shopify, requerido.
+ * @property {string} shopifyOrderLink - Enlace a la orden en Shopify, requerido.
+ * @property {string} orderType - Tipo de orden, default 'Por Definir'.
+ * @property {string} paymentStatus - Estado del pago de la orden.
+ * @property {Object} trackingInfo - Información de seguimiento de la orden y productos.
+ * @property {Object} currentStatus - Estado actual de la orden.
+ * @property {Array} statusHistory - Historial de estados de la orden.
+ * @property {Object} flags - Banderas de estado para la orden.
+ * @property {Object} orderDetails - Detalles específicos de la orden.
+ * @property {Date} createdAt - Fecha de creación de la orden.
+ * @property {Date} updatedAt - Fecha de última actualización de la orden.
+ */
 const orderSchema = Joi.object({
   shopifyOrderId: Joi.string().required(),
   shopifyOrderNumber: Joi.string().required(),
   shopifyOrderLink: Joi.string().required(),
-  orderType: Joi.string().valid('Por Definir', 'Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Por Definir'),
+  orderType: Joi.string().valid(
+    'Por Definir', 
+    'Pre-Orden', 
+    'Entrega Inmediata', 
+    'Reemplazo'
+  ).default('Por Definir'),
   paymentStatus: Joi.string().valid(
     'authorized', 
     'paid', 
@@ -16,59 +38,75 @@ const orderSchema = Joi.object({
     'voided'
   ).allow(null).default('pending'),
   trackingInfo: Joi.object({
+    // Información de seguimiento a nivel de orden
     orderTracking: Joi.object({
-      carrier: Joi.string().optional(),
-      trackingNumber: Joi.string().optional()
+      carrier: Joi.string().optional(), // Transportista asignado a la orden
+      trackingNumber: Joi.string().optional() // Número de seguimiento de la orden completa
     }).default({}),
+    // Seguimiento a nivel de producto para manejo de múltiples tracking numbers
     productTrackings: Joi.array().items(
       Joi.object({
-        productId: Joi.string().required(), // Esto sería un ObjectId en MongoDB
+        productId: Joi.string().required(), 
         carrier: Joi.string().required(),
         trackingNumber: Joi.string().required(),
-        status: productStatusSchema.required(),
-        consolidatedTrackingNumber: Joi.string().optional()
+        status: productStatusSchema.required(), // Estado del producto según su tracking
+        consolidatedTrackingNumber: Joi.string().optional(), // Número de seguimiento si el producto fue consolidado
       })
     ).default([])
   }).default({
     orderTracking: {},
     productTrackings: []
   }),
-  // Se elimina productStatus ya que ahora se maneja a nivel de producto dentro de orderDetails
-  productsByLocation: Joi.object().pattern(
-    Joi.string(),
-    Joi.number()
-  ).default({}),
-  fulfillmentStatus: Joi.object({
-    status: Joi.string().valid('fulfilled', 'unfulfilled', 'partial', 'restocked').default('unfulfilled'),
-    carrier: Joi.string().optional(),
-    trackingNumber: Joi.string().optional(),
-  }).default({ status: 'unfulfilled' }),
-  currentStatus: Joi.alternatives().try(orderStatusSchema, productStatusSchema).required().default({ status: 'Por Procesar', description: 'Nueva Orden Creada', updatedAt: () => new Date() }),
-  statusHistory: Joi.array().items(Joi.alternatives().try(orderStatusSchema, productStatusSchema)).default([{ status: 'Por Procesar', description: 'Nueva Orden Creada', updatedAt: () => new Date() }]),
-  processingTimeInDual: Joi.number().default(0),
+  currentStatus: Joi.alternatives().try(orderStatusSchema, productStatusSchema).required().default({ 
+    status: STATUS.PRODUCT.PENDING.internal, 
+    description: 'Nueva Orden Creada', 
+    updatedAt: () => new Date() 
+  }),
+  statusHistory: Joi.array().items(Joi.alternatives().try(orderStatusSchema, productStatusSchema)).default([{ 
+    status: STATUS.PRODUCT.PENDING.internal, 
+    description: 'Nueva Orden Creada', 
+    updatedAt: () => new Date() 
+  }]),
   flags: Joi.object({
-    dualDelay: Joi.boolean().default(false),
-    deliveryDelay: Joi.boolean().default(false),
+    deliveryDelay: Joi.boolean().default(false), // Indica si hubo un retraso en la entrega final
   }).default(),
   orderDetails: Joi.object({
     products: Joi.array().items(
       Joi.object({
-        productId: Joi.string().optional(), // Esto sería un ObjectId en MongoDB
+        productId: Joi.string().optional(), // Puede ser asignado más tarde
         name: Joi.string().required(),
         quantity: Joi.number().required(),
         weight: Joi.number().default(0),
-        purchaseType: Joi.string().valid('Por Definir', 'Pre-Orden', 'Entrega Inmediata', 'Reemplazo').default('Por Definir'),
-        supplierPO: Joi.string().optional().allow(''), // Cambio aquí para hacer supplierPO opcional
+        color: Joi.string().optional().allow(''), 
+        size: Joi.string().optional().allow(''), 
+        price: Joi.string().optional(),
+        vendor: Joi.string().optional(),
+        purchaseType: Joi.string().valid(
+          'Por Definir', 
+          'Pre-Orden', 
+          'Entrega Inmediata', 
+          'Reemplazo'
+        ).default('Por Definir'),
+        supplierPO: Joi.string().when('purchaseType', {
+          is: 'Pre-Orden',
+          then: Joi.string().required(),
+          otherwise: Joi.string().optional()
+        }),
         localInventory: Joi.boolean().default(false),
-        status: productStatusSchema.required()
+        status: productStatusSchema.required(),
+        provider: Joi.string().valid(
+          'TEMU', 
+          'AliExpress', 
+          'Alibaba', 
+          'Inventario Local'
+        ).optional() // Proveedor de origen del producto
       })
     ).default([]),
-    totalWeight: Joi.number().default(0),
+    totalWeight: Joi.number().default(0), // Peso total de la orden
     providerInfo: Joi.array().items(
       Joi.object({
-        provider: Joi.string().required(),
-        poNumber: Joi.string().required(),
-        orderDate: Joi.date().required(),
+        provider: Joi.string().required(), // Nombre del proveedor
+        orderDate: Joi.date().required(), // Fecha de la orden al proveedor
       })
     ).default([])
   }).required(),
@@ -76,7 +114,13 @@ const orderSchema = Joi.object({
   updatedAt: Joi.date().default(() => new Date()),
 });
 
+/**
+ * Función para validar los datos de una orden contra el esquema definido.
+ * @param {Object} orderData - Datos de la orden a validar.
+ * @returns {Object} Resultado de la validación incluyendo errores si existen.
+ */
 const validateOrder = (orderData) => {
+  // Validación completa de la orden, no se detiene en el primer error encontrado
   return orderSchema.validate(orderData, { abortEarly: false });
 };
 

@@ -59,7 +59,7 @@ const connectToMongoDB = async () => {
         const client = new MongoClient(uri);
         await client.connect();
         logger.info('Conectado a MongoDB Atlas');
-        db = client.db();
+        db = client.db(); // Ahora db está disponible de forma global
     } catch (error) {
         logger.error('Error conectando a MongoDB:', error);
         process.exit(1);
@@ -124,9 +124,7 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
             updatedAt: now,
         },
         statusHistory: [{ status: 'Por Procesar', description: 'Nueva Orden Creada', updatedAt: now }],
-        processingTimeInDual: 0,
         flags: {
-            dualDelay: false,
             deliveryDelay: false,
         },
         orderDetails: {
@@ -136,33 +134,28 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
                 quantity: item.quantity,
                 weight: item.grams || 0,
                 purchaseType: 'Por Definir', // Valor predeterminado que el usuario cambiará
-                // Ajuste para el campo status
                 status: { status: 'Por Procesar', updatedAt: now },
-                supplierPO: item.supplierPO ? item.supplierPO.toString() : '', // Ahora es opcional
-                localInventory: false
+                supplierPO: item.supplierPO ? item.supplierPO.toString() : '',
+                localInventory: false,
+                provider: item.provider || 'Inventario Local'
             })),
             totalWeight: shopifyOrder.total_weight || 0,
-            providerInfo: [] // Este debería ser manualmente actualizado
+            providerInfo: []
         },
         createdAt: new Date(shopifyOrder.created_at),
         updatedAt: now,
-        orderType: 'Por Definir' // Valor predeterminado
+        orderType: 'Por Definir'
     };
 
-    // Añadir logging para verificar la función de validación y los datos antes de validar
     logger.info('validateOrder:', validateOrder);
     logger.info('orderData antes de validar:', JSON.stringify(orderData, null, 2));
 
-    // Validar la orden
     const { error, value: validatedOrder } = validateOrder(orderData);
     if (error) {
-        // Loguear el error detalladamente
         logger.error(`Error al validar la orden: ${JSON.stringify(error.details, null, 2)}`);
-        // Lanzar el error con un mensaje más detallado
         throw new Error(`Error al validar la orden: ${error.details.map(detail => detail.message).join(', ')}`);
     }
 
-    // Loguear éxito en la validación
     logger.info('Orden validada exitosamente');
     return validatedOrder;
 }
@@ -188,49 +181,38 @@ async function updateOrder(orderData) {
 async function updateProducts(orderData) {
     for (const product of orderData.orderDetails.products) {
         try {
-            // Logging para ver los datos del producto antes de cualquier operación
             logger.info('Datos del producto a actualizar:', JSON.stringify(product, null, 2));
             
-            // Buscar si el producto ya existe en la base de datos
             const existingProduct = await db.collection('productModels').findOne({ productId: product.productId });
-            
+
             if (!existingProduct) {
-                // Si no existe, creamos un nuevo objeto de producto con los datos necesarios
                 const productData = {
                     ...product,
                     orders: [orderData.shopifyOrderId],
                     trackingNumbers: []
                 };
-                
-                // Logging antes de validar el producto
+
                 logger.info('Datos del producto a validar:', JSON.stringify(productData, null, 2));
                 
-                // Validar el producto contra el esquema
                 const { error, value } = validateProduct(productData);
                 if (error) {
-                    // Si hay un error en la validación, lo registramos
                     logger.error(`Error al validar el producto ${product.productId}:`, JSON.stringify(error.details, null, 2));
                 } else {
-                    // Si la validación es exitosa, insertamos el producto en la base de datos
                     await db.collection('productModels').insertOne(value);
                     logger.info(`Producto ${product.productId} insertado exitosamente`);
                 }
             } else {
-                // Si el producto ya existe, verificamos si la orden ya está asociada
                 if (!existingProduct.orders.includes(orderData.shopifyOrderId)) {
-                    // Si no, añadimos la orden al array de órdenes del producto
                     await db.collection('productModels').updateOne(
                         { productId: product.productId },
-                        { $push: { orders: orderData.shopifyOrderId } }
+                        { $addToSet: { orders: orderData.shopifyOrderId } }
                     );
                     logger.info(`Orden ${orderData.shopifyOrderId} añadida al producto ${product.productId}`);
                 } else {
-                    // Si ya existe, simplemente registramos que no se hizo nada
                     logger.info(`Orden ${orderData.shopifyOrderId} ya existe para el producto ${product.productId}.`);
                 }
             }
         } catch (error) {
-            // Capturamos cualquier error que ocurra durante el proceso y lo registramos
             logger.error('Error al manejar producto:', error);
         }
     }
@@ -245,7 +227,6 @@ async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null) {
         throw new Error('Faltan credenciales de Shopify');
     }
 
-    // Si no se proporcionan fechas, calculamos los últimos 30 días
     const now = new Date();
     if (!createdAtMin) {
         createdAtMin = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)).toISOString();
@@ -271,8 +252,29 @@ async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null) {
         });
 
         if (!response.ok) {
-            const errorBody = await response.text();
-            throw new Error(`Error al obtener órdenes de Shopify: ${response.statusText} - ${errorBody}`);
+            let errorBody;
+            try {
+                errorBody = await response.json();
+            } catch {
+                errorBody = { errors: [{ message: 'Unknown error' }] };
+            }
+
+            switch (response.status) {
+                case 401:
+                    throw new Error('Unauthorized: Invalid API credentials.');
+                case 403:
+                    throw new Error('Forbidden: API key lacks permissions.');
+                case 404:
+                    throw new Error('Not Found: The requested resource does not exist.');
+                case 422:
+                    throw new Error('Unprocessable Entity: ' + errorBody.errors.map(e => e.message).join(', '));
+                case 429:
+                    throw new Error('Too Many Requests: Rate limit exceeded.');
+                case 500:
+                    throw new Error('Shopify Server Error: ' + (errorBody.errors ? errorBody.errors[0].message : 'Unexpected error'));
+                default:
+                    throw new Error(`Error al obtener órdenes de Shopify: ${response.status} - ${errorBody.errors ? errorBody.errors[0].message : 'Unknown error'}`);
+            }
         }
 
         const data = await response.json();
@@ -383,22 +385,25 @@ app.post('/api/sync-orders', async (req, res) => {
 // Endpoint para consolidar productos
 app.post('/api/consolidate-products/:orderId', async (req, res) => {
     const { orderId } = req.params;
+    const { carrier } = req.body; // Esperamos que el frontend envíe el carrier seleccionado
+
+    const session = db.startSession();
     try {
+        session.startTransaction();
+
         const order = await db.collection('orderModels').findOne({ shopifyOrderId: orderId });
         if (!order) {
-            return res.status(404).json({ message: 'Orden no encontrada' });
+            throw { status: 404, message: 'Orden no encontrada' };
         }
 
-        // Verificar si todos los productos están en 'Recibido por Sharkletas'
         const allProductsReceived = order.orderDetails.products.every(product => 
             product.status.some(status => status.status === 'Recibido por Sharkletas')
         );
 
         if (!allProductsReceived) {
-            return res.status(400).json({ message: 'No todos los productos están en estado "Recibido por Sharkletas"' });
+            throw { status: 400, message: 'No todos los productos están en estado "Recibido por Sharkletas"' };
         }
 
-        // Actualizar el estado de los productos a 'Consolidado'
         const updatedProducts = order.orderDetails.products.map(product => {
             return {
                 ...product,
@@ -406,22 +411,51 @@ app.post('/api/consolidate-products/:orderId', async (req, res) => {
             };
         });
 
-        // Actualizar la orden en la base de datos
         await db.collection('orderModels').updateOne(
             { shopifyOrderId: orderId },
             {
                 $set: {
                     'orderDetails.products': updatedProducts,
                     currentStatus: { status: 'Consolidado', description: 'Productos Consolidados', updatedAt: new Date() },
-                                        'statusHistory': [...order.statusHistory, { status: 'Consolidado', description: 'Productos Consolidados', updatedAt: new Date() }]
+                    'statusHistory': [...order.statusHistory, { status: 'Consolidado', description: 'Productos Consolidados', updatedAt: new Date() }]
                 }
-            }
+            },
+            { session }
         );
 
-        res.status(200).json({ message: 'Productos consolidados exitosamente', orderId: orderId });
+        let trackingNumber = '';
+        if (carrier.toLowerCase() === 'correos de costa rica') {
+            if (!req.body.trackingNumber) {
+                throw { status: 400, message: 'Se requiere un número de tracking para Correos de Costa Rica' };
+            }
+            trackingNumber = req.body.trackingNumber;
+        } else if (carrier.toLowerCase() === 'uber flash') {
+            trackingNumber = 'UBERFLASH';
+            carrier = 'other'; // o 'otro' si prefieres
+        } else {
+            throw { status: 400, message: 'Carrier no soportado' };
+        }
+
+        await db.collection('trackingNumbersModels').insertOne({
+            trackingNumber: trackingNumber,
+            carrier: carrier,
+            products: updatedProducts.map(p => ({ productId: p.productId, status: 'Consolidado', orderId: orderId })),
+            orders: [orderId],
+            isConsolidated: true,
+            flags: {
+                processingTimeToDelivery: 0,
+            }
+        }, { session });
+
+        await session.commitTransaction();
+        
+        res.status(200).json({ message: 'Productos consolidados exitosamente', orderId: orderId, carrier, trackingNumber });
     } catch (error) {
+        await session.abortTransaction();
         logger.error(`Error al consolidar productos de la orden ${orderId}:`, error);
-        res.status(500).json({ message: 'Error al consolidar productos' });
+        res.status(error.status || 500).json({ message: error.message || 'Error al consolidar productos' });
+    } finally {
+        session.endSession();
     }
 });
 
@@ -436,7 +470,6 @@ app.post('/api/prepare-products/:orderId', async (req, res) => {
             return res.status(404).json({ message: 'Orden no encontrada' });
         }
 
-        // Verificar si la orden está en estado 'Consolidado'
         const isConsolidated = order.orderDetails.products.some(product => 
             product.status.some(status => status.status === 'Consolidado')
         );
@@ -445,12 +478,10 @@ app.post('/api/prepare-products/:orderId', async (req, res) => {
             return res.status(400).json({ message: 'La orden no está en estado "Consolidado"' });
         }
 
-        // Validar que se haya enviado un trackingNumber
         if (!trackingNumber) {
             return res.status(400).json({ message: 'Se requiere un número de tracking' });
         }
 
-        // Marcar la orden como 'Preparado' en la base de datos y añadir el tracking number
         await db.collection('orderModels').updateOne(
             { shopifyOrderId: orderId },
             {
@@ -473,10 +504,9 @@ app.post('/api/prepare-products/:orderId', async (req, res) => {
     }
 });
 
-
 // Middleware de manejo de errores
 app.use((err, req, res, next) => {
-    logger.error('Error:', err);
+    logger.error('Error encontrado:', { error: err.message, stack: err.stack });
     res.status(err.status || 500).json({
         error: {
             message: err.message || 'Algo inesperado ocurrió',
