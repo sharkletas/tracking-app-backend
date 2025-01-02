@@ -90,7 +90,7 @@ const orderSchema = Joi.object({
         supplierPO: Joi.string().when('purchaseType', {
           is: 'Pre-Orden',
           then: Joi.string().required(),
-          otherwise: Joi.string().optional()
+          otherwise: Joi.string().allow('').optional()
         }),
         localInventory: Joi.boolean().default(false),
         status: productStatusSchema.required(),
