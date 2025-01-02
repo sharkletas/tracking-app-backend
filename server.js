@@ -133,9 +133,10 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
                 name: item.name,
                 quantity: item.quantity,
                 weight: item.grams || 0,
-                purchaseType: 'Por Definir', // Valor predeterminado que el usuario cambiará
+                purchaseType: 'Por Definir', // Default que el usuario cambiará
                 status: { status: 'Por Procesar', updatedAt: now },
-                supplierPO: item.supplierPO ? item.supplierPO.toString() : '',
+                // Ajuste aquí para asegurar que supplierPO sea manejado correctamente
+                supplierPO: item.supplierPO ? item.supplierPO.toString() : (item.purchaseType === 'Pre-Orden' ? 'REQUERIDO' : ''), // Si es Pre-Orden y no viene de Shopify, forzamos a que sea requerido
                 localInventory: false,
                 provider: item.provider || 'Inventario Local'
             })),
@@ -152,6 +153,12 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
 
     const { error, value: validatedOrder } = validateOrder(orderData);
     if (error) {
+        // Aquí podríamos añadir lógica específica para tratar los errores de supplierPO
+        const supplierPOErrors = error.details.filter(detail => detail.path.includes('supplierPO'));
+        if (supplierPOErrors.length > 0) {
+            logger.error(`Errores en supplierPO para pre-órdenes:`, JSON.stringify(supplierPOErrors, null, 2));
+            // Podrías decidir manejar estos errores de manera diferente, como notificar al usuario para que complete este campo
+        }
         logger.error(`Error al validar la orden: ${JSON.stringify(error.details, null, 2)}`);
         throw new Error(`Error al validar la orden: ${error.details.map(detail => detail.message).join(', ')}`);
     }
