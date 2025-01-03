@@ -99,7 +99,7 @@ const orderSchema = Joi.object({
           'AliExpress', 
           'Alibaba', 
           'Inventario Local'
-        ).optional() // Proveedor de origen del producto
+        ).allow('').optional() // Proveedor de origen del producto
       })
     ).default([]),
     totalWeight: Joi.number().default(0), // Peso total de la orden

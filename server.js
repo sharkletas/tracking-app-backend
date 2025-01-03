@@ -136,9 +136,8 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
                 purchaseType: 'Por Definir', // Default que el usuario cambiará
                 status: { status: 'Por Procesar', updatedAt: now },
                 supplierPO: '', // No viene de Shopify, entonces siempre es una cadena vacía
-                provider: 'Por Definir', // Default que el usuario cambiará
-                variantTitle: item.variant_title || '', // Añadido para capturar la variante
-                sku: item.sku || '' // Manejo de SKU vacío o nulo
+                provider: '', // Default que el usuario cambiará o será asignado, dejamos en blanco
+                // Removimos variantTitle y sku como solicitaste
             })),
             totalWeight: shopifyOrder.total_weight || 0,
             providerInfo: []

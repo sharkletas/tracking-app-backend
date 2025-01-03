@@ -11,8 +11,6 @@ const { STATUS } = require('./statusModels');
  * @property {string} price - Precio del producto, opcional.
  * @property {number} quantity - Cantidad del producto, requerido.
  * @property {string} vendor - Nombre del vendedor, opcional.
- * @property {string} variantTitle - Título de la variante del producto, opcional.
- * @property {string} sku - SKU del producto, puede estar vacío.
  * @property {Array} trackingNumbers - Lista de números de seguimiento asociados al producto.
  * @property {string} purchaseType - Tipo de compra, requerido para decidir el flujo de manejo.
  * @property {string} supplierPO - ID de la orden de compra al proveedor, requerido para pre-órdenes.
@@ -25,8 +23,6 @@ const productSchema = Joi.object({
   price: Joi.string().optional(), // Precio del producto
   quantity: Joi.number().required(), // Cantidad
   vendor: Joi.string().optional(), // Nombre del vendedor
-  variantTitle: Joi.string().optional(), // Detalles de variante como color y talla
-  sku: Joi.string().optional().allow(''), // SKU opcional, puede estar vacío
   trackingNumbers: Joi.array().items(
     Joi.object({
       trackingNumber: Joi.string().required(),
@@ -53,7 +49,7 @@ const productSchema = Joi.object({
     'AliExpress', 
     'Alibaba', 
     'Inventario Local'
-  ).default('Por Definir')
+  ).allow('').default('Por Definir')
 });
 
 /**
