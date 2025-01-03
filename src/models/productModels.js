@@ -13,11 +13,9 @@ const { STATUS } = require('./statusModels');
  * @property {string} vendor - Nombre del vendedor, opcional.
  * @property {string} variantTitle - Título de la variante del producto, opcional.
  * @property {string} sku - SKU del producto, puede estar vacío.
- * @property {Array} orders - Lista de IDs de órdenes relacionadas con el producto.
  * @property {Array} trackingNumbers - Lista de números de seguimiento asociados al producto.
  * @property {string} purchaseType - Tipo de compra, requerido para decidir el flujo de manejo.
  * @property {string} supplierPO - ID de la orden de compra al proveedor, requerido para pre-órdenes.
- * @property {boolean} localInventory - Indica si el producto está en inventario local, default false.
  * @property {string} provider - Proveedor del producto, opcional.
  */
 const productSchema = Joi.object({
@@ -29,7 +27,6 @@ const productSchema = Joi.object({
   vendor: Joi.string().optional(), // Nombre del vendedor
   variantTitle: Joi.string().optional(), // Detalles de variante como color y talla
   sku: Joi.string().optional().allow(''), // SKU opcional, puede estar vacío
-  orders: Joi.array().items(Joi.string()).default([]),
   trackingNumbers: Joi.array().items(
     Joi.object({
       trackingNumber: Joi.string().required(),
@@ -50,13 +47,13 @@ const productSchema = Joi.object({
     then: Joi.string().required(),
     otherwise: Joi.string().allow('').optional()
   }),
-  localInventory: Joi.boolean().default(false),
   provider: Joi.string().valid(
+    'Por Definir', 
     'TEMU', 
     'AliExpress', 
     'Alibaba', 
     'Inventario Local'
-  ).optional()
+  ).default('Por Definir')
 });
 
 /**

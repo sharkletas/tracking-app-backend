@@ -13,8 +13,9 @@ const { STATUS } = require('./statusModels');
  * @property {Object} trackingInfo - Información de seguimiento de la orden y productos.
  * @property {Object} currentStatus - Estado actual de la orden.
  * @property {Array} statusHistory - Historial de estados de la orden.
- * @property {Object} flags - Banderas de estado para la orden.
  * @property {Object} orderDetails - Detalles específicos de la orden.
+ * @property {Array} productIds - Lista de IDs de productos incluidos en la orden.
+ * @property {string} location - Sucursal de Shopify donde están agrupados los productos.
  * @property {Date} createdAt - Fecha de creación de la orden.
  * @property {Date} updatedAt - Fecha de última actualización de la orden.
  */
@@ -92,7 +93,6 @@ const orderSchema = Joi.object({
           then: Joi.string().required(),
           otherwise: Joi.string().allow('').optional()
         }),
-        localInventory: Joi.boolean().default(false),
         status: productStatusSchema.required(),
         provider: Joi.string().valid(
           'TEMU', 
@@ -110,6 +110,8 @@ const orderSchema = Joi.object({
       })
     ).default([])
   }).required(),
+  productIds: Joi.array().items(Joi.string()).default([]), // Lista de IDs de productos incluidos en la orden
+  location: Joi.string().valid('Sharkletas HQ', 'CJ Dropshipping China Warehouse').default('Sharkletas HQ'),
   createdAt: Joi.date().default(() => new Date()),
   updatedAt: Joi.date().default(() => new Date()),
 });

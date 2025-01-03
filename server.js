@@ -130,18 +130,21 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
         orderDetails: {
             products: (shopifyOrder.line_items || []).map((item) => ({
                 productId: item.id ? item.id.toString() : `temp_${item.variant_id || Date.now()}`,
-                name: item.name,
+                name: item.title,
                 quantity: item.quantity,
                 weight: item.grams || 0,
                 purchaseType: 'Por Definir', // Default que el usuario cambiará
                 status: { status: 'Por Procesar', updatedAt: now },
-                supplierPO: '', // supplierPO no existe en Shopify, entonces siempre es una cadena vacía
-                localInventory: false,
-                provider: item.provider || 'Inventario Local'
+                supplierPO: '', // No viene de Shopify, entonces siempre es una cadena vacía
+                provider: 'Por Definir', // Default que el usuario cambiará
+                variantTitle: item.variant_title || '', // Añadido para capturar la variante
+                sku: item.sku || '' // Manejo de SKU vacío o nulo
             })),
             totalWeight: shopifyOrder.total_weight || 0,
             providerInfo: []
         },
+        productIds: (shopifyOrder.line_items || []).map(item => item.product_id.toString()),
+        location: shopifyOrder.location_id === '70713934012' ? 'Sharkletas HQ' : 'CJ Dropshipping China Warehouse', // Ajusta '1234567890' por el ID real de la sucursal 'Sharkletas HQ'
         createdAt: new Date(shopifyOrder.created_at),
         updatedAt: now,
         orderType: 'Por Definir' // Default que el usuario cambiará
@@ -152,11 +155,6 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
 
     const { error, value: validatedOrder } = validateOrder(orderData);
     if (error) {
-        const supplierPOErrors = error.details.filter(detail => detail.path.includes('supplierPO'));
-        if (supplierPOErrors.length > 0) {
-            logger.error(`Errores en supplierPO:`, JSON.stringify(supplierPOErrors, null, 2));
-            // Aquí podrías añadir lógica para manejar estos errores, por ejemplo, notificar al usuario para que actualice estos campos
-        }
         logger.error(`Error al validar la orden: ${JSON.stringify(error.details, null, 2)}`);
         throw new Error(`Error al validar la orden: ${error.details.map(detail => detail.message).join(', ')}`);
     }
@@ -184,43 +182,61 @@ async function updateOrder(orderData) {
 
 // Insertar o actualizar productos
 async function updateProducts(orderData) {
-    for (const product of orderData.orderDetails.products) {
-        try {
-            logger.info('Datos del producto a actualizar:', JSON.stringify(product, null, 2));
-            
-            const existingProduct = await db.collection('productModels').findOne({ productId: product.productId });
+  for (const product of orderData.orderDetails.products) {
+    try {
+      logger.info('Datos del producto a actualizar:', { 
+        productId: product.productId,
+        productData: product 
+      });
+      
+      const existingProduct = await db.collection('productModels').findOne({ productId: product.productId });
 
-            if (!existingProduct) {
-                const productData = {
-                    ...product,
-                    orders: [orderData.shopifyOrderId],
-                    trackingNumbers: []
-                };
+      if (!existingProduct) {
+        const productData = {
+          ...product,
+          trackingNumbers: []
+        };
 
-                logger.info('Datos del producto a validar:', JSON.stringify(productData, null, 2));
-                
-                const { error, value } = validateProduct(productData);
-                if (error) {
-                    logger.error(`Error al validar el producto ${product.productId}:`, JSON.stringify(error.details, null, 2));
-                } else {
-                    await db.collection('productModels').insertOne(value);
-                    logger.info(`Producto ${product.productId} insertado exitosamente`);
-                }
-            } else {
-                if (!existingProduct.orders.includes(orderData.shopifyOrderId)) {
-                    await db.collection('productModels').updateOne(
-                        { productId: product.productId },
-                        { $addToSet: { orders: orderData.shopifyOrderId } }
-                    );
-                    logger.info(`Orden ${orderData.shopifyOrderId} añadida al producto ${product.productId}`);
-                } else {
-                    logger.info(`Orden ${orderData.shopifyOrderId} ya existe para el producto ${product.productId}.`);
-                }
+        logger.info('Datos del producto a validar:', { 
+          productId: product.productId,
+          productData: productData 
+        });
+        
+        const { error, value } = validateProduct(productData);
+        if (error) {
+          const errorDetails = error.details.map(detail => ({
+            message: detail.message,
+            path: detail.path.join('.')
+          }));
+          logger.error(
+            `Error al validar el producto ${product.productId} de la orden: ${orderData.shopifyOrderId}`, 
+            { 
+              validationErrors: errorDetails,
+              productData: productData
             }
-        } catch (error) {
-            logger.error('Error al manejar producto:', error);
+          );
+        } else {
+          await db.collection('productModels').insertOne(value);
+          logger.info(`Producto ${product.productId} insertado exitosamente`);
         }
+      } else {
+        if (!existingProduct.orders.includes(orderData.shopifyOrderId)) {
+          await db.collection('productModels').updateOne(
+            { productId: product.productId },
+            { $addToSet: { orders: orderData.shopifyOrderId } }
+          );
+          logger.info(`Orden ${orderData.shopifyOrderId} añadida al producto ${product.productId}`);
+        } else {
+          logger.info(`Orden ${orderData.shopifyOrderId} ya existe para el producto ${product.productId}.`);
+        }
+      }
+    } catch (error) {
+      logger.error(`Error al manejar producto ${product.productId} de la orden ${orderData.shopifyOrderId}:`, { 
+        error: error.message,
+        stack: error.stack
+      });
     }
+  }
 }
 
 // Fetch de órdenes desde Shopify
