@@ -146,7 +146,11 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
                 quantity: item.quantity,
                 weight: item.grams || 0,
                 purchaseType: 'Por Definir', // Default que el usuario cambiará
-                status: { status: 'Por Procesar', updatedAt: now },
+                status: {
+                    status: 'Por Procesar',
+                    description: 'Producto recién ingresado en el sistema',
+                    updatedAt: now
+                },
                 supplierPO: '', // No viene de Shopify, entonces siempre es una cadena vacía
                 provider: '', // Default que el usuario cambiará o será asignado, dejamos en blanco
                 // Removimos variantTitle y sku como solicitaste
