@@ -356,8 +356,6 @@ cron.schedule('*/10 * * * *', async () => {
 });
 
 // Endpoint para actualizar el token
-let apiToken = process.env.API_TOKEN; // Inicializa con el token actual de la variable de entorno
-
 app.post('/api/update-token', (req, res) => {
   // Solo permite la actualización si el request viene con el token actual
   if (req.headers['x-api-token'] === apiToken) {
