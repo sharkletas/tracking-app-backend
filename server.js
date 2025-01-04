@@ -5,6 +5,11 @@ const cron = require('node-cron');
 const cors = require('cors');
 const { parse } = require('date-fns');
 const fetch = require('node-fetch');
+// const { v4: uuidv4 } = require('uuid');
+// const apiToken = uuidv4();
+// console.log('Nuevo API Token generado:', apiToken);
+const apiToken = process.env.API_TOKEN; // Usa el token de la variable de entorno
+// const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -15,7 +20,7 @@ const { validateProduct } = require('./src/models/productModels');
 const { validateTrackingNumber } = require('./src/models/trackingNumbersModels');
 const { orderStatusSchema, productStatusSchema } = require('./src/models/statusModels');
 
-app.set('trust proxy', true);
+app.set('trust proxy', process.env.LOCAL_IP);
 
 const allowedOrigins = [
     'http://localhost:5173', 
@@ -47,6 +52,13 @@ app.use((req, res, next) => {
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+});
+
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api') && req.headers['x-api-token'] !== apiToken) {
+        return res.status(401).json({ message: 'Acceso no autorizado' });
+    }
     next();
 });
 
@@ -341,6 +353,33 @@ cron.schedule('*/10 * * * *', async () => {
     } catch (error) {
         logger.error('Error en la sincronización automática:', error);
     }
+});
+
+// Endpoint para actualizar el token
+let apiToken = process.env.API_TOKEN; // Inicializa con el token actual de la variable de entorno
+
+app.post('/api/update-token', (req, res) => {
+  // Solo permite la actualización si el request viene con el token actual
+  if (req.headers['x-api-token'] === apiToken) {
+    // Aquí asumimos que el nuevo token viene en el cuerpo de la solicitud
+    const { newToken } = req.body;
+    
+    if (newToken) {
+      apiToken = newToken;
+      console.log('Token actualizado en memoria:', apiToken);
+      res.status(200).json({ message: 'Token actualizado con éxito' });
+    } else {
+      res.status(400).json({ message: 'Nuevo token no proporcionado' });
+    }
+  } else {
+    res.status(401).json({ message: 'Acceso no autorizado' });
+  }
+});
+
+//Endpoint para proveer el token
+app.get('/api/get-token', (req, res) => {
+  // Aquí podrías añadir lógica adicional para autenticación o autorización
+  res.json({ token: apiToken });
 });
 
 // Endpoint para obtener todas las órdenes
