@@ -7,6 +7,10 @@ frontend/
 # Archivos sensibles
 .env
 orderUpdater.js
+dataValidationTest.js
+order5685481013436.json
+mongoStatusCreation.js
+package-lock.json
 
 # Logs
 npm-debug.log*
