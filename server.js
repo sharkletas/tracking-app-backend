@@ -12,7 +12,7 @@ const apiToken = process.env.API_TOKEN; // Usa el token de la variable de entorn
 // const jwt = require('jsonwebtoken');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 10000;
 
 // Importación de modelos actualizados
 const { validateOrder, orderSchema } = require('./src/models/orderModel');
