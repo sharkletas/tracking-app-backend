@@ -88,11 +88,17 @@ async function loadStatusesFromDB() {
 }
 
 connectToMongoDB().then(() => {
-    // Importación de modelos después de que inMemoryStatuses esté cargado
     const { validateOrder, orderSchema } = require('./src/models/orderModel');
     const { validateProduct } = require('./src/models/productModels');
     const { validateTrackingNumber } = require('./src/models/trackingNumbersModels');
     const { orderStatusSchema, productStatusSchema } = require('./src/models/statusModels');
+
+    // Aquí puedes hacer el logging
+    logger.info('validateOrder:', validateOrder !== undefined);
+    logger.info('validateProduct:', validateProduct !== undefined);
+    logger.info('validateTrackingNumber:', validateTrackingNumber !== undefined);
+    logger.info('orderStatusSchema:', orderStatusSchema !== undefined);
+    logger.info('productStatusSchema:', productStatusSchema !== undefined);
 
     // Iniciar el servidor
     app.listen(port, () => {
@@ -102,7 +108,6 @@ connectToMongoDB().then(() => {
     logger.error('Fallo al conectar con MongoDB o cargar estados:', err);
     process.exit(1);
 });
-
 
 const winston = require('winston');
 
@@ -118,13 +123,6 @@ const logger = winston.createLogger({
         new winston.transports.File({ filename: 'combined.log' })
     ]
 });
-
-// Logging para verificar que todas las importaciones están definidas correctamente
-logger.info('validateOrder:', validateOrder !== undefined);
-logger.info('validateProduct:', validateProduct !== undefined);
-logger.info('validateTrackingNumber:', validateTrackingNumber !== undefined);
-logger.info('orderStatusSchema:', orderStatusSchema !== undefined);
-logger.info('productStatusSchema:', productStatusSchema !== undefined);
 
 const rateLimit = require('express-rate-limit');
 
