@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { getInMemoryStatuses } = require('../../../server');
+const { getInMemoryStatuses } = require('../../server');
 /**
  * Esquema Joi para validar el estado de los productos.
  * @typedef {Object} ProductStatusSchema

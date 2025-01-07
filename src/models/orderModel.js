@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { getInMemoryStatuses } = require('../../../server');
+const { getInMemoryStatuses } = require('../../server');
 const productSchema = require('./productModels').productSchema;
 const statusSchema = require('./statusModels').statusSchema;
 const supplierPOSchema = require('./supplierPOModels').supplierPOSchema;
