@@ -5,9 +5,6 @@ const cron = require('node-cron');
 const cors = require('cors');
 const { parse } = require('date-fns');
 const fetch = require('node-fetch');
-// const { v4: uuidv4 } = require('uuid');
-// const apiToken = uuidv4();
-// console.log('Nuevo API Token generado:', apiToken);
 const apiToken = process.env.API_TOKEN; // Usa el token de la variable de entorno
 // const jwt = require('jsonwebtoken');
 
@@ -140,29 +137,35 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
             deliveryDelay: false,
         },
         orderDetails: {
-            products: (shopifyOrder.line_items || []).map((item) => ({
-                productId: item.id ? item.id.toString() : `temp_${item.variant_id || Date.now()}`,
-                name: item.title,
-                quantity: item.quantity,
-                weight: item.grams || 0,
-                purchaseType: 'Por Definir', // Default que el usuario cambiará
-                status: {
-                    status: 'Por Procesar',
-                    description: 'Producto recién ingresado en el sistema',
-                    updatedAt: now
-                },
-                supplierPO: '', // No viene de Shopify, entonces siempre es una cadena vacía
-                provider: '', // Default que el usuario cambiará o será asignado, dejamos en blanco
-                // Removimos variantTitle y sku como solicitaste
-            })),
+            products: (shopifyOrder.line_items || []).map((item) => {
+                const [color, sizeInfo] = (item.variant_title || '').split('/').map(v => v.trim());
+                const size = sizeInfo.split('|')[0].trim(); // Toma la primera parte antes del primer '|'
+
+                return {
+                    productId: item.id ? item.id.toString() : `temp_${item.variant_id || Date.now()}`,
+                    name: item.title,
+                    quantity: item.quantity,
+                    weight: item.grams || 0,
+                    purchaseType: 'Por Definir',
+                    status: {
+                        status: 'Por Procesar',
+                        description: 'Producto recién ingresado en el sistema',
+                        updatedAt: now
+                    },
+                    supplierPO: '',
+                    provider: '',
+                    color: color || '', // Si no hay color, dejarlo como cadena vacía
+                    size: size || '',   // Si no hay tamaño, dejarlo como cadena vacía
+                };
+            }),
             totalWeight: shopifyOrder.total_weight || 0,
             providerInfo: []
         },
         productIds: (shopifyOrder.line_items || []).map(item => item.product_id.toString()),
-        location: shopifyOrder.location_id === '70713934012' ? 'Sharkletas HQ' : 'CJ Dropshipping China Warehouse', // Ajusta '1234567890' por el ID real de la sucursal 'Sharkletas HQ'
+        location: shopifyOrder.location_id === '70713934012' ? 'Sharkletas HQ' : 'CJ Dropshipping China Warehouse',
         createdAt: new Date(shopifyOrder.created_at),
         updatedAt: now,
-        orderType: 'Por Definir' // Default que el usuario cambiará
+        orderType: 'Por Definir'
     };
 
     logger.info('validateOrder:', validateOrder);
@@ -204,24 +207,56 @@ async function updateProducts(orderData) {
         productData: product 
       });
       
-      const existingProduct = await db.collection('productModels').findOne({ productId: product.productId });
+      const existingProduct = await db.collection('productModels').findOne({ 
+        productId: product.productId, 
+        orderId: orderData.shopifyOrderId 
+      });
 
       if (!existingProduct) {
-        // ... (código existente para insertar nuevo producto)
-      } else {
-        // Asegurarse de que orders existe y es un array
-        if (!existingProduct.orders) {
-          existingProduct.orders = []; // Inicializar orders si no existe
-        }
+        const productData = {
+          ...product,
+          orderId: orderData.shopifyOrderId,
+          trackingNumbers: []
+        };
+
+        logger.info('Datos del producto a validar:', { 
+          productId: product.productId,
+          productData: productData 
+        });
         
-        if (!existingProduct.orders.includes(orderData.shopifyOrderId)) {
-          await db.collection('productModels').updateOne(
-            { productId: product.productId },
-            { $addToSet: { orders: orderData.shopifyOrderId } }
+        const { error, value } = validateProduct(productData);
+        if (error) {
+          const errorDetails = error.details.map(detail => ({
+            message: detail.message,
+            path: detail.path.join('.')
+          }));
+          logger.error(
+            `Error al validar el producto ${product.productId} de la orden: ${orderData.shopifyOrderId}`, 
+            { 
+              validationErrors: errorDetails,
+              productData: productData
+            }
           );
-          logger.info(`Orden ${orderData.shopifyOrderId} añadida al producto ${product.productId}`);
         } else {
-          logger.info(`Orden ${orderData.shopifyOrderId} ya existe para el producto ${product.productId}.`);
+          await db.collection('productModels').insertOne(value);
+          logger.info(`Producto ${product.productId} para la orden ${orderData.shopifyOrderId} insertado exitosamente`);
+        }
+      } else {
+        // Si el producto existe, actualiza solo los campos necesarios
+        const updateResult = await db.collection('productModels').updateOne(
+          { productId: product.productId, orderId: orderData.shopifyOrderId },
+          { 
+            $set: {
+              color: product.color,
+              size: product.size,
+              // ... otros campos que podrían cambiar ...
+            }
+          }
+        );
+        if (updateResult.matchedCount > 0) {
+          logger.info(`Producto ${product.productId} de la orden ${orderData.shopifyOrderId} actualizado exitosamente`);
+        } else {
+          logger.warn(`No se pudo actualizar el producto ${product.productId} para la orden ${orderData.shopifyOrderId}`);
         }
       }
     } catch (error) {

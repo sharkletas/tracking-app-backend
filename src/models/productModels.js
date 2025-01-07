@@ -23,6 +23,7 @@ const productSchema = Joi.object({
   price: Joi.string().optional(), // Precio del producto
   quantity: Joi.number().required(), // Cantidad
   vendor: Joi.string().optional(), // Nombre del vendedor
+  orderId: Joi.string().required(), // Orden de Shopify linked
   trackingNumbers: Joi.array().items(
     Joi.object({
       trackingNumber: Joi.string().required(),
