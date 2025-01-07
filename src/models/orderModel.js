@@ -1,8 +1,11 @@
 const Joi = require('joi');
+const { getInMemoryStatuses } = require('../../../server');
 const productSchema = require('./productModels').productSchema;
 const statusSchema = require('./statusModels').statusSchema;
 const supplierPOSchema = require('./supplierPOModels').supplierPOSchema;
 const trackingNumberSchema = require('./trackingNumberModels').trackingNumberSchema;
+
+const statuses = getInMemoryStatuses();
 
 const orderSchema = Joi.object({
   shopifyOrderId: Joi.string().required(),

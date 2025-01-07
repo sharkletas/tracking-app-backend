@@ -87,6 +87,10 @@ async function loadStatusesFromDB() {
     }
 }
 
+function getInMemoryStatuses() {
+    return inMemoryStatuses;
+}
+
 connectToMongoDB().then(() => {
     const { validateOrder, orderSchema } = require('./src/models/orderModel');
     const { validateProduct } = require('./src/models/productModels');
@@ -108,6 +112,10 @@ connectToMongoDB().then(() => {
     logger.error('Fallo al conectar con MongoDB o cargar estados:', err);
     process.exit(1);
 });
+
+module.exports = { 
+    getInMemoryStatuses
+};
 
 const winston = require('winston');
 

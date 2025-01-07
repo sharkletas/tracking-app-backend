@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { getInMemoryStatuses } = require('../../../server');
 const { productStatusSchema } = require('./statusModels');
 
 /**
@@ -15,6 +16,8 @@ const { productStatusSchema } = require('./statusModels');
  * @property {string} supplierPO - ID de la orden de compra al proveedor, requerido para pre-órdenes.
  * @property {string} provider - Proveedor del producto, opcional.
  */
+
+const statuses = getInMemoryStatuses();
 
 const productSchema = Joi.object({
   productId: Joi.string().optional(),

@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { getInMemoryStatuses } = require('../../../server');
 const { productStatusSchema } = require('./statusModels');
 
 /**
@@ -13,6 +14,9 @@ const { productStatusSchema } = require('./statusModels');
  * @property {Object} flags - Banderas de estado para el tracking number.
  * @property {string} supplierPO - ID de la orden de compra al proveedor asociada.
  */
+
+const statuses = getInMemoryStatuses();
+
 const trackingNumberSchema = Joi.object({
   trackingNumber: Joi.string().required(),
   carrier: Joi.string().required(),
