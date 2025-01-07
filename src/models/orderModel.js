@@ -1,24 +1,3 @@
-const Joi = require('joi');
-const { orderStatusSchema, productStatusSchema } = require('./statusModels');
-const { STATUS } = require('./statusModels');
-
-/**
- * Esquema Joi para validar la estructura de una orden.
- * @typedef {Object} OrderSchema
- * @property {string} shopifyOrderId - Identificador de la orden en Shopify, requerido.
- * @property {string} shopifyOrderNumber - Número de orden en Shopify, requerido.
- * @property {string} shopifyOrderLink - Enlace a la orden en Shopify, requerido.
- * @property {string} orderType - Tipo de orden, default 'Por Definir'.
- * @property {string} paymentStatus - Estado del pago de la orden.
- * @property {Object} trackingInfo - Información de seguimiento de la orden y productos.
- * @property {Object} currentStatus - Estado actual de la orden.
- * @property {Array} statusHistory - Historial de estados de la orden.
- * @property {Object} orderDetails - Detalles específicos de la orden.
- * @property {Array} productIds - Lista de IDs de productos incluidos en la orden.
- * @property {string} location - Sucursal de Shopify donde están agrupados los productos.
- * @property {Date} createdAt - Fecha de creación de la orden.
- * @property {Date} updatedAt - Fecha de última actualización de la orden.
- */
 const orderSchema = Joi.object({
   shopifyOrderId: Joi.string().required(),
   shopifyOrderNumber: Joi.string().required(),
@@ -39,19 +18,17 @@ const orderSchema = Joi.object({
     'voided'
   ).allow(null).default('pending'),
   trackingInfo: Joi.object({
-    // Información de seguimiento a nivel de orden
     orderTracking: Joi.object({
-      carrier: Joi.string().optional(), // Transportista asignado a la orden
-      trackingNumber: Joi.string().optional() // Número de seguimiento de la orden completa
+      carrier: Joi.string().optional(),
+      trackingNumber: Joi.string().optional()
     }).default({}),
-    // Seguimiento a nivel de producto para manejo de múltiples tracking numbers
     productTrackings: Joi.array().items(
       Joi.object({
         productId: Joi.string().required(), 
         carrier: Joi.string().required(),
         trackingNumber: Joi.string().required(),
-        status: productStatusSchema.required(), // Estado del producto según su tracking
-        consolidatedTrackingNumber: Joi.string().optional(), // Número de seguimiento si el producto fue consolidado
+        status: productStatusSchema.required(),
+        consolidatedTrackingNumber: Joi.string().optional(),
       })
     ).default([])
   }).default({
@@ -59,22 +36,22 @@ const orderSchema = Joi.object({
     productTrackings: []
   }),
   currentStatus: Joi.alternatives().try(orderStatusSchema, productStatusSchema).required().default({ 
-    status: STATUS.PRODUCT.PENDING.internal, 
+    status: 'Por Procesar', // Esto debería ser dinámico basado en inMemoryStatuses
     description: 'Nueva Orden Creada', 
     updatedAt: () => new Date() 
   }),
   statusHistory: Joi.array().items(Joi.alternatives().try(orderStatusSchema, productStatusSchema)).default([{ 
-    status: STATUS.PRODUCT.PENDING.internal, 
+    status: 'Por Procesar', // Esto también debería ser dinámico
     description: 'Nueva Orden Creada', 
     updatedAt: () => new Date() 
   }]),
   flags: Joi.object({
-    deliveryDelay: Joi.boolean().default(false), // Indica si hubo un retraso en la entrega final
+    deliveryDelay: Joi.boolean().default(false),
   }).default(),
   orderDetails: Joi.object({
     products: Joi.array().items(
       Joi.object({
-        productId: Joi.string().optional(), // Puede ser asignado más tarde
+        productId: Joi.string().optional(),
         name: Joi.string().required(),
         quantity: Joi.number().required(),
         weight: Joi.number().default(0),
@@ -99,18 +76,18 @@ const orderSchema = Joi.object({
           'AliExpress', 
           'Alibaba', 
           'Inventario Local'
-        ).allow('').optional() // Proveedor de origen del producto
+        ).allow('').optional()
       })
     ).default([]),
-    totalWeight: Joi.number().default(0), // Peso total de la orden
+    totalWeight: Joi.number().default(0),
     providerInfo: Joi.array().items(
       Joi.object({
-        provider: Joi.string().required(), // Nombre del proveedor
-        orderDate: Joi.date().required(), // Fecha de la orden al proveedor
+        provider: Joi.string().required(),
+        orderDate: Joi.date().required(),
       })
     ).default([])
   }).required(),
-  productIds: Joi.array().items(Joi.string()).default([]), // Lista de IDs de productos incluidos en la orden
+  productIds: Joi.array().items(Joi.string()).default([]),
   location: Joi.string().valid('Sharkletas HQ', 'CJ Dropshipping China Warehouse').default('Sharkletas HQ'),
   createdAt: Joi.date().default(() => new Date()),
   updatedAt: Joi.date().default(() => new Date()),

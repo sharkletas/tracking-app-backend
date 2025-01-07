@@ -1,6 +1,5 @@
 const Joi = require('joi');
 const { productStatusSchema } = require('./statusModels');
-const { STATUS } = require('./statusModels');
 
 /**
  * Esquema Joi para validar la estructura de un producto.
@@ -16,14 +15,15 @@ const { STATUS } = require('./statusModels');
  * @property {string} supplierPO - ID de la orden de compra al proveedor, requerido para pre-órdenes.
  * @property {string} provider - Proveedor del producto, opcional.
  */
+
 const productSchema = Joi.object({
   productId: Joi.string().optional(),
   name: Joi.string().required(),
-  weight: Joi.number().default(0), // Mapeado desde 'grams'
-  price: Joi.string().optional(), // Precio del producto
-  quantity: Joi.number().required(), // Cantidad
-  vendor: Joi.string().optional(), // Nombre del vendedor
-  orderId: Joi.string().required(), // Orden de Shopify linked
+  weight: Joi.number().default(0),
+  price: Joi.string().optional(),
+  quantity: Joi.number().required(),
+  vendor: Joi.string().optional(),
+  orderId: Joi.string().required(),
   trackingNumbers: Joi.array().items(
     Joi.object({
       trackingNumber: Joi.string().required(),
@@ -51,7 +51,9 @@ const productSchema = Joi.object({
     'Alibaba', 
     'Inventario Local'
   ).allow('').default('Por Definir'),
-  status: productStatusSchema.required() //Agregado par fix de validación.git 
+  status: productStatusSchema.required(),
+  color: Joi.string().optional().allow(''), // Añadido
+  size: Joi.string().optional().allow(''), // Añadido
 });
 
 /**

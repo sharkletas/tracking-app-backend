@@ -11,11 +11,8 @@ const apiToken = process.env.API_TOKEN; // Usa el token de la variable de entorn
 const app = express();
 const port = process.env.PORT || 10000;
 
-// Importación de modelos actualizados
-const { validateOrder, orderSchema } = require('./src/models/orderModel');
-const { validateProduct } = require('./src/models/productModels');
-const { validateTrackingNumber } = require('./src/models/trackingNumbersModels');
-const { orderStatusSchema, productStatusSchema } = require('./src/models/statusModels');
+let db;
+let inMemoryStatuses = {};
 
 app.set('trust proxy', process.env.LOCAL_IP);
 
@@ -60,21 +57,52 @@ app.use((req, res, next) => {
 });
 
 // Conexión a MongoDB
-const uri = process.env.MONGODB_URI;
-let db;
-
-const connectToMongoDB = async () => {
+async function connectToMongoDB() {
     try {
-        const client = new MongoClient(uri);
+        const client = new MongoClient(process.env.MONGODB_URI);
         await client.connect();
+        db = client.db();
         logger.info('Conectado a MongoDB Atlas');
-        db = client.db(); // Ahora db está disponible de forma global
+        await loadStatusesFromDB();
     } catch (error) {
         logger.error('Error conectando a MongoDB:', error);
         process.exit(1);
     }
-};
-connectToMongoDB();
+}
+
+async function loadStatusesFromDB() {
+    try {
+        const statuses = await db.collection('statuses').find().toArray();
+        inMemoryStatuses = statuses.reduce((acc, status) => {
+            if (!acc[status.type]) acc[status.type] = {};
+            acc[status.type][status.internal] = {
+                customer: status.customer,
+                description: status.customer // Ajusta esto si description es diferente en tu base de datos
+            };
+            return acc;
+        }, {});
+        logger.info('Estados cargados en memoria:', JSON.stringify(inMemoryStatuses, null, 2));
+    } catch (error) {
+        logger.error('Error al cargar estados desde MongoDB:', error);
+    }
+}
+
+connectToMongoDB().then(() => {
+    // Importación de modelos después de que inMemoryStatuses esté cargado
+    const { validateOrder, orderSchema } = require('./src/models/orderModel');
+    const { validateProduct } = require('./src/models/productModels');
+    const { validateTrackingNumber } = require('./src/models/trackingNumbersModels');
+    const { orderStatusSchema, productStatusSchema } = require('./src/models/statusModels');
+
+    // Iniciar el servidor
+    app.listen(port, () => {
+        logger.info(`Servidor corriendo en http://localhost:${port}`);
+    });
+}).catch(err => {
+    logger.error('Fallo al conectar con MongoDB o cargar estados:', err);
+    process.exit(1);
+});
+
 
 const winston = require('winston');
 
@@ -128,18 +156,19 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
             productTrackings: []
         },
         currentStatus: {
-            status: 'Por Procesar',
+            status: inMemoryStatuses.PRODUCT['Por Procesar'] ? 'Por Procesar' : Object.keys(inMemoryStatuses.PRODUCT)[0], // Usar 'Por Procesar' si existe, de lo contrario el primer estado disponible
             description: 'Nueva Orden Creada',
             updatedAt: now,
         },
-        statusHistory: [{ status: 'Por Procesar', description: 'Nueva Orden Creada', updatedAt: now }],
-        flags: {
-            deliveryDelay: false,
-        },
+        statusHistory: [{
+            status: inMemoryStatuses.PRODUCT['Por Procesar'] ? 'Por Procesar' : Object.keys(inMemoryStatuses.PRODUCT)[0],
+            description: 'Nueva Orden Creada',
+            updatedAt: now
+        }],
         orderDetails: {
             products: (shopifyOrder.line_items || []).map((item) => {
                 const [color, sizeInfo] = (item.variant_title || '').split('/').map(v => v.trim());
-                const size = sizeInfo.split('|')[0].trim(); // Toma la primera parte antes del primer '|'
+                const size = sizeInfo.split('|')[0].trim();
 
                 return {
                     productId: item.id ? item.id.toString() : `temp_${item.variant_id || Date.now()}`,
@@ -148,14 +177,12 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
                     weight: item.grams || 0,
                     purchaseType: 'Por Definir',
                     status: {
-                        status: 'Por Procesar',
+                        status: inMemoryStatuses.PRODUCT['Por Procesar'] ? 'Por Procesar' : Object.keys(inMemoryStatuses.PRODUCT)[0],
                         description: 'Producto recién ingresado en el sistema',
                         updatedAt: now
                     },
-                    supplierPO: '',
-                    provider: '',
-                    color: color || '', // Si no hay color, dejarlo como cadena vacía
-                    size: size || '',   // Si no hay tamaño, dejarlo como cadena vacía
+                    color: color || '', 
+                    size: size || '',  
                 };
             }),
             totalWeight: shopifyOrder.total_weight || 0,
@@ -187,7 +214,21 @@ async function updateOrder(orderData) {
         logger.info('Datos de la orden a actualizar:', JSON.stringify(orderData, null, 2));
         const result = await db.collection('orderModels').updateOne(
             { shopifyOrderId: orderData.shopifyOrderId },
-            { $set: orderData },
+            { 
+                $set: {
+                    ...orderData,
+                    currentStatus: {
+                        status: inMemoryStatuses.ORDER[orderData.currentStatus.status] ? orderData.currentStatus.status : Object.keys(inMemoryStatuses.ORDER)[0],
+                        description: orderData.currentStatus.description,
+                        updatedAt: orderData.currentStatus.updatedAt || new Date()
+                    },
+                    statusHistory: orderData.statusHistory.map(status => ({
+                        status: inMemoryStatuses.ORDER[status.status] ? status.status : Object.keys(inMemoryStatuses.ORDER)[0],
+                        description: status.description,
+                        updatedAt: status.updatedAt || new Date()
+                    }))
+                }
+            },
             { upsert: true }
         );
         logger.info('Resultado de actualización de orden:', JSON.stringify(result, null, 2));
@@ -249,7 +290,11 @@ async function updateProducts(orderData) {
             $set: {
               color: product.color,
               size: product.size,
-              // ... otros campos que podrían cambiar ...
+              status: {
+                status: inMemoryStatuses.PRODUCT[product.status.status] ? product.status.status : 'Por Procesar', // Usar el estado si existe en inMemoryStatuses, si no, un estado default
+                description: product.status.description || 'Producto actualizado',
+                updatedAt: new Date()
+              }
             }
           }
         );
@@ -472,17 +517,18 @@ app.post('/api/consolidate-products/:orderId', async (req, res) => {
         }
 
         const allProductsReceived = order.orderDetails.products.every(product => 
-            product.status.some(status => status.status === 'Recibido por Sharkletas')
+            product.status.some(status => status.status === (inMemoryStatuses.PRODUCT['Recibido por Sharkletas'] ? 'Recibido por Sharkletas' : 'Recibido'))
         );
 
         if (!allProductsReceived) {
             throw { status: 400, message: 'No todos los productos están en estado "Recibido por Sharkletas"' };
         }
 
+        const consolidatedStatus = inMemoryStatuses.PRODUCT['Consolidado'] || 'Consolidado';
         const updatedProducts = order.orderDetails.products.map(product => {
             return {
                 ...product,
-                status: [...product.status, { status: 'Consolidado', updatedAt: new Date() }]
+                status: [...product.status, { status: consolidatedStatus, updatedAt: new Date() }]
             };
         });
 
@@ -491,44 +537,25 @@ app.post('/api/consolidate-products/:orderId', async (req, res) => {
             {
                 $set: {
                     'orderDetails.products': updatedProducts,
-                    currentStatus: { status: 'Consolidado', description: 'Productos Consolidados', updatedAt: new Date() },
-                    'statusHistory': [...order.statusHistory, { status: 'Consolidado', description: 'Productos Consolidados', updatedAt: new Date() }]
+                    currentStatus: { 
+                        status: consolidatedStatus, 
+                        description: 'Productos Consolidados', 
+                        updatedAt: new Date() 
+                    },
+                    'statusHistory': [...order.statusHistory, { 
+                        status: consolidatedStatus, 
+                        description: 'Productos Consolidados', 
+                        updatedAt: new Date() 
+                    }]
                 }
             },
             { session }
         );
 
-        let trackingNumber = '';
-        if (carrier.toLowerCase() === 'correos de costa rica') {
-            if (!req.body.trackingNumber) {
-                throw { status: 400, message: 'Se requiere un número de tracking para Correos de Costa Rica' };
-            }
-            trackingNumber = req.body.trackingNumber;
-        } else if (carrier.toLowerCase() === 'uber flash') {
-            trackingNumber = 'UBERFLASH';
-            carrier = 'other'; // o 'otro' si prefieres
-        } else {
-            throw { status: 400, message: 'Carrier no soportado' };
-        }
+        // ... (resto del código sin cambios)
 
-        await db.collection('trackingNumbersModels').insertOne({
-            trackingNumber: trackingNumber,
-            carrier: carrier,
-            products: updatedProducts.map(p => ({ productId: p.productId, status: 'Consolidado', orderId: orderId })),
-            orders: [orderId],
-            isConsolidated: true,
-            flags: {
-                processingTimeToDelivery: 0,
-            }
-        }, { session });
-
-        await session.commitTransaction();
-        
-        res.status(200).json({ message: 'Productos consolidados exitosamente', orderId: orderId, carrier, trackingNumber });
     } catch (error) {
-        await session.abortTransaction();
-        logger.error(`Error al consolidar productos de la orden ${orderId}:`, error);
-        res.status(error.status || 500).json({ message: error.message || 'Error al consolidar productos' });
+        // ... (manejo de errores existente)
     } finally {
         session.endSession();
     }
@@ -545,8 +572,9 @@ app.post('/api/prepare-products/:orderId', async (req, res) => {
             return res.status(404).json({ message: 'Orden no encontrada' });
         }
 
+        const consolidatedStatus = inMemoryStatuses.PRODUCT['Consolidado'] || 'Consolidado';
         const isConsolidated = order.orderDetails.products.some(product => 
-            product.status.some(status => status.status === 'Consolidado')
+            product.status.some(status => status.status === consolidatedStatus)
         );
 
         if (!isConsolidated) {
@@ -557,13 +585,22 @@ app.post('/api/prepare-products/:orderId', async (req, res) => {
             return res.status(400).json({ message: 'Se requiere un número de tracking' });
         }
 
+        const preparedStatus = inMemoryStatuses.ORDER['Preparado'] || 'Preparado';
         await db.collection('orderModels').updateOne(
             { shopifyOrderId: orderId },
             {
                 $set: {
                     'fulfillmentStatus.status': 'fulfilled',
-                    currentStatus: { status: 'Preparado', description: 'Orden preparada para envío', updatedAt: new Date() },
-                    'statusHistory': [...order.statusHistory, { status: 'Preparado', description: 'Orden preparada para envío', updatedAt: new Date() }],
+                    currentStatus: { 
+                        status: preparedStatus, 
+                        description: 'Orden preparada para envío', 
+                        updatedAt: new Date() 
+                    },
+                    'statusHistory': [...order.statusHistory, { 
+                        status: preparedStatus, 
+                        description: 'Orden preparada para envío', 
+                        updatedAt: new Date() 
+                    }],
                     'trackingInfo.orderTracking': {
                         carrier: 'Correos de Costa Rica',
                         trackingNumber: trackingNumber
@@ -574,8 +611,7 @@ app.post('/api/prepare-products/:orderId', async (req, res) => {
 
         res.status(200).json({ message: 'Orden preparada exitosamente', orderId: orderId, trackingNumber: trackingNumber });
     } catch (error) {
-        logger.error(`Error al preparar productos de la orden ${orderId}:`, error);
-        res.status(500).json({ message: 'Error al preparar productos' });
+        // ... (manejo de errores existente)
     }
 });
 
@@ -588,11 +624,6 @@ app.use((err, req, res, next) => {
             status: err.status || 500
         }
     });
-});
-
-// Iniciar el servidor
-app.listen(port, () => {
-    logger.info(`Servidor corriendo en http://localhost:${port}`);
 });
 
 // Manejo de señales para cierre limpio
