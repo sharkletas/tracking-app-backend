@@ -50,7 +50,7 @@ const productSchema = Joi.object({
     'Alibaba', 
     'Inventario Local'
   ).allow('').default('Por Definir'),
-  status: productStatusSchema.required()
+  status: productStatusSchema.required() //Agregado par fix de validación.
 });
 
 /**
