@@ -196,42 +196,42 @@ async function updateOrder(orderData) {
 }
 
 // Insertar o actualizar productos
-  async function updateProducts(orderData) {
-    for (const product of orderData.orderDetails.products) {
-      try {
-        logger.info('Datos del producto a actualizar:', { 
-          productId: product.productId,
-          productData: product 
-        });
-        
-        const existingProduct = await db.collection('productModels').findOne({ productId: product.productId });
+async function updateProducts(orderData) {
+  for (const product of orderData.orderDetails.products) {
+    try {
+      logger.info('Datos del producto a actualizar:', { 
+        productId: product.productId,
+        productData: product 
+      });
+      
+      const existingProduct = await db.collection('productModels').findOne({ productId: product.productId });
 
-        if (!existingProduct) {
-          // ... (código existente para insertar nuevo producto)
+      if (!existingProduct) {
+        // ... (código existente para insertar nuevo producto)
+      } else {
+        // Asegurarse de que orders existe y es un array
+        if (!existingProduct.orders) {
+          existingProduct.orders = []; // Inicializar orders si no existe
+        }
+        
+        if (!existingProduct.orders.includes(orderData.shopifyOrderId)) {
+          await db.collection('productModels').updateOne(
+            { productId: product.productId },
+            { $addToSet: { orders: orderData.shopifyOrderId } }
+          );
+          logger.info(`Orden ${orderData.shopifyOrderId} añadida al producto ${product.productId}`);
         } else {
-          // Asegurarse de que orders existe y es un array
-          if (!existingProduct.orders) {
-            existingProduct.orders = []; // Inicializar orders si no existe
-          }
-          
-          if (!existingProduct.orders.includes(orderData.shopifyOrderId)) {
-            await db.collection('productModels').updateOne(
-              { productId: product.productId },
-              { $addToSet: { orders: orderData.shopifyOrderId } }
-            );
-            logger.info(`Orden ${orderData.shopifyOrderId} añadida al producto ${product.productId}`);
-          } else {
-            logger.info(`Orden ${orderData.shopifyOrderId} ya existe para el producto ${product.productId}.`);
-          }
-        } catch (error) {
-          logger.error(`Error al manejar producto ${product.productId} de la orden ${orderData.shopifyOrderId}:`, { 
-            error: error.message,
-            stack: error.stack
-          });
+          logger.info(`Orden ${orderData.shopifyOrderId} ya existe para el producto ${product.productId}.`);
         }
       }
+    } catch (error) {
+      logger.error(`Error al manejar producto ${product.productId} de la orden ${orderData.shopifyOrderId}:`, { 
+        error: error.message,
+        stack: error.stack
+      });
     }
   }
+}
 
 // Fetch de órdenes desde Shopify
 async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null) {
