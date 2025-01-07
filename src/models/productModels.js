@@ -49,7 +49,8 @@ const productSchema = Joi.object({
     'AliExpress', 
     'Alibaba', 
     'Inventario Local'
-  ).allow('').default('Por Definir')
+  ).allow('').default('Por Definir'),
+  status: productStatusSchema.required()
 });
 
 /**

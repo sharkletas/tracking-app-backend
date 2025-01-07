@@ -1,0 +1,476 @@
+{
+  "order": {
+    "id": 5685481013436,
+    "admin_graphql_api_id": "gid://shopify/Order/5685481013436",
+    "app_id": 580111,
+    "browser_ip": "201.206.37.71",
+    "buyer_accepts_marketing": true,
+    "cancel_reason": null,
+    "cancelled_at": null,
+    "cart_token": "Z2NwLXVzLWVhc3QxOjAxSkdRMU0yWkVYREFFUEg3NU5XTUgyQ0JQ",
+    "checkout_id": 36836644323516,
+    "checkout_token": "5560f40549ceab96e878438227bbd95b",
+    "client_details": {
+      "accept_language": "es-CR",
+      "browser_height": null,
+      "browser_ip": "201.206.37.71",
+      "browser_width": null,
+      "session_hash": null,
+      "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1.1 Mobile/15E148 Safari/604.1"
+    },
+    "closed_at": null,
+    "confirmation_number": "RYFKLFDMW",
+    "confirmed": true,
+    "created_at": "2025-01-03T16:37:02-06:00",
+    "currency": "CRC",
+    "current_subtotal_price": "44970.00",
+    "current_subtotal_price_set": {
+      "shop_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      }
+    },
+    "current_total_additional_fees_set": null,
+    "current_total_discounts": "0.00",
+    "current_total_discounts_set": {
+      "shop_money": {
+        "amount": "0.00",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "0.00",
+        "currency_code": "CRC"
+      }
+    },
+    "current_total_duties_set": null,
+    "current_total_price": "44970.00",
+    "current_total_price_set": {
+      "shop_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      }
+    },
+    "current_total_tax": "5173.54",
+    "current_total_tax_set": {
+      "shop_money": {
+        "amount": "5173.54",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "5173.54",
+        "currency_code": "CRC"
+      }
+    },
+    "customer_locale": "es-CR",
+    "device_id": null,
+    "discount_codes": [],
+    "estimated_taxes": false,
+    "financial_status": "paid",
+    "fulfillment_status": null,
+    "landing_site": "/",
+    "landing_site_ref": null,
+    "location_id": null,
+    "merchant_of_record_app_id": null,
+    "name": "#SO-1515",
+    "note": null,
+    "note_attributes": [],
+    "number": 515,
+    "order_number": 1515,
+    "original_total_additional_fees_set": null,
+    "original_total_duties_set": null,
+    "payment_gateway_names": [
+      "Tilopay - Credit Card Onsite"
+    ],
+    "po_number": null,
+    "presentment_currency": "CRC",
+    "processed_at": "2025-01-03T16:37:01-06:00",
+    "reference": null,
+    "referring_site": "",
+    "source_identifier": null,
+    "source_name": "web",
+    "source_url": null,
+    "subtotal_price": "44970.00",
+    "subtotal_price_set": {
+      "shop_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      }
+    },
+    "tags": "osp: En Tránsito",
+    "tax_exempt": false,
+    "tax_lines": [
+      {
+        "price": "5173.54",
+        "rate": 0.13,
+        "title": "VAT",
+        "price_set": {
+          "shop_money": {
+            "amount": "5173.54",
+            "currency_code": "CRC"
+          },
+          "presentment_money": {
+            "amount": "5173.54",
+            "currency_code": "CRC"
+          }
+        },
+        "channel_liable": false
+      }
+    ],
+    "taxes_included": true,
+    "test": false,
+    "token": "2a0628512b1d363022ba6eb7502030d9",
+    "total_discounts": "0.00",
+    "total_discounts_set": {
+      "shop_money": {
+        "amount": "0.00",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "0.00",
+        "currency_code": "CRC"
+      }
+    },
+    "total_line_items_price": "44970.00",
+    "total_line_items_price_set": {
+      "shop_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      }
+    },
+    "total_outstanding": "0.00",
+    "total_price": "44970.00",
+    "total_price_set": {
+      "shop_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "44970.00",
+        "currency_code": "CRC"
+      }
+    },
+    "total_shipping_price_set": {
+      "shop_money": {
+        "amount": "0.00",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "0.00",
+        "currency_code": "CRC"
+      }
+    },
+    "total_tax": "5173.54",
+    "total_tax_set": {
+      "shop_money": {
+        "amount": "5173.54",
+        "currency_code": "CRC"
+      },
+      "presentment_money": {
+        "amount": "5173.54",
+        "currency_code": "CRC"
+      }
+    },
+    "total_tip_received": "0.00",
+    "total_weight": 460,
+    "updated_at": "2025-01-06T16:45:14-06:00",
+    "user_id": null,
+    "billing_address": {
+      "province": "Heredia",
+      "country": "Costa Rica",
+      "country_code": "CR",
+      "province_code": "CR-H"
+    },
+    "customer": {
+      "id": 7842474754236,
+      "created_at": "2024-07-03T21:27:37-06:00",
+      "updated_at": "2025-01-03T16:37:03-06:00",
+      "state": "disabled",
+      "note": null,
+      "verified_email": true,
+      "multipass_identifier": null,
+      "tax_exempt": false,
+      "email_marketing_consent": {
+        "state": "subscribed",
+        "opt_in_level": "single_opt_in",
+        "consent_updated_at": "2024-07-03T21:27:37-06:00"
+      },
+      "sms_marketing_consent": null,
+      "tags": "",
+      "currency": "CRC",
+      "tax_exemptions": [],
+      "admin_graphql_api_id": "gid://shopify/Customer/7842474754236",
+      "default_address": {
+        "id": 8917674852540,
+        "customer_id": 7842474754236,
+        "company": null,
+        "province": "Heredia",
+        "country": "Costa Rica",
+        "province_code": "CR-H",
+        "country_code": "CR",
+        "country_name": "Costa Rica",
+        "default": true
+      }
+    },
+    "discount_applications": [],
+    "fulfillments": [],
+    "line_items": [
+      {
+        "id": 13775333392572,
+        "admin_graphql_api_id": "gid://shopify/LineItem/13775333392572",
+        "attributed_staffs": [],
+        "current_quantity": 1,
+        "fulfillable_quantity": 1,
+        "fulfillment_service": "manual",
+        "fulfillment_status": null,
+        "gift_card": false,
+        "grams": 460,
+        "name": "Sharktuflas® Felpudas Adultos - Cielo / 36-37 | US 7-8 Mujer | US 6 Hombre | 23-24 cm",
+        "price": "21990.00",
+        "price_set": {
+          "shop_money": {
+            "amount": "21990.00",
+            "currency_code": "CRC"
+          },
+          "presentment_money": {
+            "amount": "21990.00",
+            "currency_code": "CRC"
+          }
+        },
+        "product_exists": true,
+        "product_id": 8498113577148,
+        "properties": [],
+        "quantity": 1,
+        "requires_shipping": true,
+        "sku": null,
+        "taxable": true,
+        "title": "Sharktuflas® Felpudas Adultos",
+        "total_discount": "0.00",
+        "total_discount_set": {
+          "shop_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          },
+          "presentment_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          }
+        },
+        "variant_id": 44018696257724,
+        "variant_inventory_management": "shopify",
+        "variant_title": "Cielo / 36-37 | US 7-8 Mujer | US 6 Hombre | 23-24 cm",
+        "vendor": "Sharkletas",
+        "tax_lines": [
+          {
+            "channel_liable": false,
+            "price": "2529.82",
+            "price_set": {
+              "shop_money": {
+                "amount": "2529.82",
+                "currency_code": "CRC"
+              },
+              "presentment_money": {
+                "amount": "2529.82",
+                "currency_code": "CRC"
+              }
+            },
+            "rate": 0.13,
+            "title": "VAT"
+          }
+        ],
+        "duties": [],
+        "discount_allocations": []
+      },
+      {
+        "id": 13775333425340,
+        "admin_graphql_api_id": "gid://shopify/LineItem/13775333425340",
+        "attributed_staffs": [],
+        "current_quantity": 1,
+        "fulfillable_quantity": 1,
+        "fulfillment_service": "manual",
+        "fulfillment_status": null,
+        "gift_card": false,
+        "grams": 0,
+        "name": "Sharky-charms® Unicornio Pastel (No Brillan en la Oscuridad)",
+        "price": "5990.00",
+        "price_set": {
+          "shop_money": {
+            "amount": "5990.00",
+            "currency_code": "CRC"
+          },
+          "presentment_money": {
+            "amount": "5990.00",
+            "currency_code": "CRC"
+          }
+        },
+        "product_exists": true,
+        "product_id": 8537981911228,
+        "properties": [],
+        "quantity": 1,
+        "requires_shipping": true,
+        "sku": null,
+        "taxable": true,
+        "title": "Sharky-charms® Unicornio Pastel (No Brillan en la Oscuridad)",
+        "total_discount": "0.00",
+        "total_discount_set": {
+          "shop_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          },
+          "presentment_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          }
+        },
+        "variant_id": 44082153259196,
+        "variant_inventory_management": "shopify",
+        "variant_title": null,
+        "vendor": "Sharkletas",
+        "tax_lines": [
+          {
+            "channel_liable": false,
+            "price": "689.12",
+            "price_set": {
+              "shop_money": {
+                "amount": "689.12",
+                "currency_code": "CRC"
+              },
+              "presentment_money": {
+                "amount": "689.12",
+                "currency_code": "CRC"
+              }
+            },
+            "rate": 0.13,
+            "title": "VAT"
+          }
+        ],
+        "duties": [],
+        "discount_allocations": []
+      },
+      {
+        "id": 13775333458108,
+        "admin_graphql_api_id": "gid://shopify/LineItem/13775333458108",
+        "attributed_staffs": [],
+        "current_quantity": 1,
+        "fulfillable_quantity": 1,
+        "fulfillment_service": "manual",
+        "fulfillment_status": null,
+        "gift_card": false,
+        "grams": 0,
+        "name": "Sharkletitas® Rainbow Niños con Soporte de Talón - Chicle / US 2J | 32-33 | 21 cm",
+        "price": "16990.00",
+        "price_set": {
+          "shop_money": {
+            "amount": "16990.00",
+            "currency_code": "CRC"
+          },
+          "presentment_money": {
+            "amount": "16990.00",
+            "currency_code": "CRC"
+          }
+        },
+        "product_exists": true,
+        "product_id": 8326392971452,
+        "properties": [],
+        "quantity": 1,
+        "requires_shipping": true,
+        "sku": "14:496#Purple Pink;200000124:200000298#210(Inner 21cm);200007763:201336100",
+        "taxable": true,
+        "title": "Sharkletitas® Rainbow Niños con Soporte de Talón",
+        "total_discount": "0.00",
+        "total_discount_set": {
+          "shop_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          },
+          "presentment_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          }
+        },
+        "variant_id": 43670452797628,
+        "variant_inventory_management": "shopify",
+        "variant_title": "Chicle / US 2J | 32-33 | 21 cm",
+        "vendor": "Sharkletas",
+        "tax_lines": [
+          {
+            "channel_liable": false,
+            "price": "1954.60",
+            "price_set": {
+              "shop_money": {
+                "amount": "1954.60",
+                "currency_code": "CRC"
+              },
+              "presentment_money": {
+                "amount": "1954.60",
+                "currency_code": "CRC"
+              }
+            },
+            "rate": 0.13,
+            "title": "VAT"
+          }
+        ],
+        "duties": [],
+        "discount_allocations": []
+      }
+    ],
+    "payment_terms": null,
+    "refunds": [],
+    "shipping_address": {
+      "province": "Heredia",
+      "country": "Costa Rica",
+      "country_code": "CR",
+      "province_code": "CR-H"
+    },
+    "shipping_lines": [
+      {
+        "id": 4736060981436,
+        "carrier_identifier": null,
+        "code": "Envío Gratis",
+        "discounted_price": "0.00",
+        "discounted_price_set": {
+          "shop_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          },
+          "presentment_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          }
+        },
+        "phone": null,
+        "price": "0.00",
+        "price_set": {
+          "shop_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          },
+          "presentment_money": {
+            "amount": "0.00",
+            "currency_code": "CRC"
+          }
+        },
+        "requested_fulfillment_service_id": null,
+        "source": "shopify",
+        "title": "Envío Gratis",
+        "tax_lines": [],
+        "discount_allocations": []
+      }
+    ]
+  }
+}
