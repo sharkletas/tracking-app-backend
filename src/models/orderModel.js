@@ -1,3 +1,9 @@
+const Joi = require('joi');
+const productSchema = require('./productModels').productSchema;
+const statusSchema = require('./statusModels').statusSchema;
+const supplierPOSchema = require('./supplierPOModels').supplierPOSchema;
+const trackingNumberSchema = require('./trackingNumberModels').trackingNumberSchema;
+
 const orderSchema = Joi.object({
   shopifyOrderId: Joi.string().required(),
   shopifyOrderNumber: Joi.string().required(),
