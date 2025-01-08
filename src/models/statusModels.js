@@ -13,12 +13,12 @@ const statuses = getInMemoryStatuses();
 
 const productStatusSchema = Joi.object({
   status: Joi.string().valid(
-    // Ahora validamos contra inMemoryStatuses.PRODUCT
-    ...Object.keys(inMemoryStatuses.PRODUCT || {})
+    // Ahora validamos contra statuses.PRODUCT
+    ...Object.keys(statuses.PRODUCT || {})
   ).required(),
   description: Joi.string().default((parent, helpers) => {
-    // Aquí usarías inMemoryStatuses para obtener la descripción
-    return (inMemoryStatuses.PRODUCT && inMemoryStatuses.PRODUCT[parent.status]?.customer) || 'Estado sin descripción específica';
+    // Aquí usarías statuses para obtener la descripción
+    return (statuses.PRODUCT && statuses.PRODUCT[parent.status]?.customer) || 'Estado sin descripción específica';
   }),
   updatedAt: Joi.date().default(() => new Date())
 });
@@ -32,12 +32,12 @@ const productStatusSchema = Joi.object({
  */
 const orderStatusSchema = Joi.object({
   status: Joi.string().valid(
-    // Ahora validamos contra inMemoryStatuses.ORDER
-    ...Object.keys(inMemoryStatuses.ORDER || {})
+    // Ahora validamos contra statuses.ORDER
+    ...Object.keys(statuses.ORDER || {})
   ).required(),
   description: Joi.string().default((parent, helpers) => {
-    // Aquí usarías inMemoryStatuses para obtener la descripción
-    return (inMemoryStatuses.ORDER && inMemoryStatuses.ORDER[parent.status]?.customer) || 'Estado sin descripción específica';
+    // Aquí usarías statuses para obtener la descripción
+    return (statuses.ORDER && statuses.ORDER[parent.status]?.customer) || 'Estado sin descripción específica';
   }),
   updatedAt: Joi.date().default(() => new Date())
 });

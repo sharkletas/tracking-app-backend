@@ -1,9 +1,9 @@
 const Joi = require('joi');
 const { getInMemoryStatuses } = require('../utils/inMemoryStatuses');
 const productSchema = require('./productModels').productSchema;
-const statusSchema = require('./statusModels').statusSchema;
+const { productStatusSchema, orderStatusSchema } = require('./statusModels');
 const supplierPOSchema = require('./supplierPOModels').supplierPOSchema;
-const trackingNumberSchema = require('./trackingNumberModels').trackingNumberSchema;
+const trackingNumberSchema = require('./trackingNumbersModels').trackingNumberSchema;
 
 const statuses = getInMemoryStatuses();
 
@@ -44,10 +44,13 @@ const orderSchema = Joi.object({
     orderTracking: {},
     productTrackings: []
   }),
-  currentStatus: Joi.alternatives().try(orderStatusSchema, productStatusSchema).required().default({ 
-    status: 'Por Procesar', // Esto debería ser dinámico basado en inMemoryStatuses
-    description: 'Nueva Orden Creada', 
-    updatedAt: () => new Date() 
+  currentStatus: Joi.alternatives().try(orderStatusSchema, productStatusSchema).required().default(() => {
+    const defaultStatus = statuses.ORDER['Por Procesar'] || { customer: 'Estado Desconocido', description: 'Descripción Desconocida' };
+    return {
+        status: 'Por Procesar',
+        description: defaultStatus.customer || 'Nueva Orden Creada',
+        updatedAt: new Date()
+    };
   }),
   statusHistory: Joi.array().items(Joi.alternatives().try(orderStatusSchema, productStatusSchema)).default([{ 
     status: 'Por Procesar', // Esto también debería ser dinámico

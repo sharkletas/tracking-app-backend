@@ -24,8 +24,8 @@ const trackingNumberSchema = Joi.object({
     Joi.object({
       productId: Joi.string().required(),
       status: Joi.string().valid(
-        // Usa inMemoryStatuses para validar el status
-        ...Object.keys(inMemoryStatuses.PRODUCT || {})
+        // Usa statuses para validar el status
+        ...Object.keys(statuses.PRODUCT || {})
       ).default('Por Procesar'), // Ajusta el default según tu lógica de negocio
       orderId: Joi.string().required(),
     })
