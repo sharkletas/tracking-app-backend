@@ -8,7 +8,7 @@ const { getInMemoryStatuses } = require('../../server');
  * @property {Date} updatedAt - Fecha y hora de la actualización del estado, por defecto la fecha actual.
  */
 
-const statuses = getInMemoryStatuses();
+const { getInMemoryStatuses } = require('../utils/inMemoryStatuses');
 
 const productStatusSchema = Joi.object({
   status: Joi.string().valid(
