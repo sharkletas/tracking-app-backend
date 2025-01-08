@@ -1,5 +1,6 @@
 const Joi = require('joi');
-const { getInMemoryStatuses } = require('../../server');
+const { getInMemoryStatuses } = require('../utils/inMemoryStatuses');
+
 /**
  * Esquema Joi para validar el estado de los productos.
  * @typedef {Object} ProductStatusSchema
@@ -8,7 +9,7 @@ const { getInMemoryStatuses } = require('../../server');
  * @property {Date} updatedAt - Fecha y hora de la actualización del estado, por defecto la fecha actual.
  */
 
-const { getInMemoryStatuses } = require('../utils/inMemoryStatuses');
+const statuses = getInMemoryStatuses();
 
 const productStatusSchema = Joi.object({
   status: Joi.string().valid(
