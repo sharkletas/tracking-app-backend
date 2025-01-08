@@ -6,13 +6,13 @@ const cors = require('cors');
 const { parse } = require('date-fns');
 const fetch = require('node-fetch');
 const apiToken = process.env.API_TOKEN; // Usa el token de la variable de entorno
-// const jwt = require('jsonwebtoken');
+
+const { setInMemoryStatuses, getInMemoryStatuses } = require('./src/utils/inMemoryStatuses');
 
 const app = express();
 const port = process.env.PORT || 10000;
 
 let db;
-let inMemoryStatuses = {};
 
 app.set('trust proxy', process.env.LOCAL_IP);
 
@@ -62,61 +62,58 @@ async function connectToMongoDB() {
         const client = new MongoClient(process.env.MONGODB_URI);
         await client.connect();
         db = client.db();
-        logger.info('Conectado a MongoDB Atlas');
-        await loadStatusesFromDB();
+        console.info('Conectado a MongoDB Atlas');
+        await loadStatusesFromDB(); // Carga los estados desde la base de datos
     } catch (error) {
-        logger.error('Error conectando a MongoDB:', error);
+        console.error('Error conectando a MongoDB:', error);
         process.exit(1);
     }
 }
 
+// Cargar los estados desde MongoDB y almacenarlos en `inMemoryStatuses`
 async function loadStatusesFromDB() {
     try {
         const statuses = await db.collection('statuses').find().toArray();
-        inMemoryStatuses = statuses.reduce((acc, status) => {
-            if (!acc[status.type]) acc[status.type] = {};
-            acc[status.type][status.internal] = {
-                customer: status.customer,
-                description: status.customer,
-            };
-            return acc;
-        }, {});
-        logger.info('Estados cargados en memoria:', JSON.stringify(inMemoryStatuses, null, 2));
+        setInMemoryStatuses(
+            statuses.reduce((acc, status) => {
+                if (!acc[status.type]) acc[status.type] = {};
+                acc[status.type][status.internal] = {
+                    customer: status.customer,
+                    description: status.customer,
+                };
+                return acc;
+            }, {})
+        );
+        console.info('Estados cargados en memoria.');
     } catch (error) {
-        logger.error('Error al cargar estados desde MongoDB:', error);
+        console.error('Error al cargar estados desde MongoDB:', error);
+        setInMemoryStatuses({}); // Fallback a un objeto vacío
     }
 }
 
-function getInMemoryStatuses() {
-    return inMemoryStatuses;
-}
 
-// Conectar a MongoDB y cargar los modelos después
-connectToMongoDB().then(() => {
-    // Exportar `getInMemoryStatuses` después de la conexión
-    module.exports = { getInMemoryStatuses };
+// Conectar y cargar modelos después de que los estados estén disponibles
+connectToMongoDB()
+    .then(() => {
+        const statuses = getInMemoryStatuses();
+        console.info('Verificando estados cargados:', JSON.stringify(statuses, null, 2));
+        // Importar modelos después de cargar los estados
+        const { validateOrder } = require('./src/models/orderModel');
+        const { validateProduct } = require('./src/models/productModels');
+        const { validateTrackingNumber } = require('./src/models/trackingNumbersModels');
+        const { orderStatusSchema, productStatusSchema } = require('./src/models/statusModels');
 
-    // Cargar los modelos después de que `getInMemoryStatuses` esté listo
-    const { validateOrder, orderSchema } = require('./src/models/orderModel');
-    const { validateProduct } = require('./src/models/productModels');
-    const { validateTrackingNumber } = require('./src/models/trackingNumbersModels');
-    const { orderStatusSchema, productStatusSchema } = require('./src/models/statusModels');
+        console.info('Modelos cargados exitosamente.');
 
-    // Aquí puedes hacer el logging
-    logger.info('validateOrder:', validateOrder !== undefined);
-    logger.info('validateProduct:', validateProduct !== undefined);
-    logger.info('validateTrackingNumber:', validateTrackingNumber !== undefined);
-    logger.info('orderStatusSchema:', orderStatusSchema !== undefined);
-    logger.info('productStatusSchema:', productStatusSchema !== undefined);
-
-    // Iniciar el servidor
-    app.listen(port, () => {
-        logger.info(`Servidor corriendo en http://localhost:${port}`);
+        // Iniciar el servidor
+        app.listen(port, () => {
+            console.info(`Servidor corriendo en http://localhost:${port}`);
+        });
+    })
+    .catch((err) => {
+        console.error('Fallo al conectar con MongoDB o cargar estados:', err);
+        process.exit(1);
     });
-}).catch((err) => {
-    logger.error('Fallo al conectar con MongoDB o cargar estados:', err);
-    process.exit(1);
-});
 
 const winston = require('winston');
 
@@ -132,6 +129,7 @@ const logger = winston.createLogger({
         new winston.transports.File({ filename: 'combined.log' })
     ]
 });
+
 
 const rateLimit = require('express-rate-limit');
 
@@ -152,6 +150,8 @@ app.get('/health', (req, res) => {
 // Función para mapear una orden de Shopify a modelo de MongoDB
 function mapShopifyOrderToMongoModel(shopifyOrder) {
     const now = new Date();
+    const statuses = getInMemoryStatuses();
+
 
     const orderData = {
         shopifyOrderId: shopifyOrder.id.toString(),
@@ -163,12 +163,12 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
             productTrackings: []
         },
         currentStatus: {
-            status: inMemoryStatuses.PRODUCT['Por Procesar'] ? 'Por Procesar' : Object.keys(inMemoryStatuses.PRODUCT)[0], // Usar 'Por Procesar' si existe, de lo contrario el primer estado disponible
+            status: statuses.PRODUCT['Por Procesar'] ? 'Por Procesar' : Object.keys(statuses.PRODUCT)[0], // Usar 'Por Procesar' si existe, de lo contrario el primer estado disponible
             description: 'Nueva Orden Creada',
             updatedAt: now,
         },
         statusHistory: [{
-            status: inMemoryStatuses.PRODUCT['Por Procesar'] ? 'Por Procesar' : Object.keys(inMemoryStatuses.PRODUCT)[0],
+            status: statuses.PRODUCT['Por Procesar'] ? 'Por Procesar' : Object.keys(statuses.PRODUCT)[0],
             description: 'Nueva Orden Creada',
             updatedAt: now
         }],
@@ -184,7 +184,7 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
                     weight: item.grams || 0,
                     purchaseType: 'Por Definir',
                     status: {
-                        status: inMemoryStatuses.PRODUCT['Por Procesar'] ? 'Por Procesar' : Object.keys(inMemoryStatuses.PRODUCT)[0],
+                        status: statuses.PRODUCT['Por Procesar'] ? 'Por Procesar' : Object.keys(statuses.PRODUCT)[0],
                         description: 'Producto recién ingresado en el sistema',
                         updatedAt: now
                     },
@@ -217,20 +217,33 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
 
 // Insertar o actualizar orden
 async function updateOrder(orderData) {
+    const statuses = getInMemoryStatuses();
+
     try {
         logger.info('Datos de la orden a actualizar:', JSON.stringify(orderData, null, 2));
+
+        // Obtener la orden existente desde MongoDB
+        const existingOrder = await db.collection('orderModels').findOne({ shopifyOrderId: orderData.shopifyOrderId });
+
+        // Comparar datos
+        if (existingOrder && JSON.stringify(existingOrder) === JSON.stringify(orderData)) {
+            logger.info(`Orden ${orderData.shopifyOrderId} ya está sincronizada. No se realizaron cambios.`);
+            return existingOrder.shopifyOrderId;
+        }
+
+        // Actualizar la orden si hay diferencias
         const result = await db.collection('orderModels').updateOne(
             { shopifyOrderId: orderData.shopifyOrderId },
             { 
                 $set: {
                     ...orderData,
                     currentStatus: {
-                        status: inMemoryStatuses.ORDER[orderData.currentStatus.status] ? orderData.currentStatus.status : Object.keys(inMemoryStatuses.ORDER)[0],
+                        status: statuses.ORDER[orderData.currentStatus.status] ? orderData.currentStatus.status : Object.keys(statuses.ORDER)[0],
                         description: orderData.currentStatus.description,
                         updatedAt: orderData.currentStatus.updatedAt || new Date()
                     },
                     statusHistory: orderData.statusHistory.map(status => ({
-                        status: inMemoryStatuses.ORDER[status.status] ? status.status : Object.keys(inMemoryStatuses.ORDER)[0],
+                        status: statuses.ORDER[status.status] ? status.status : Object.keys(statuses.ORDER)[0],
                         description: status.description,
                         updatedAt: status.updatedAt || new Date()
                     }))
@@ -238,6 +251,7 @@ async function updateOrder(orderData) {
             },
             { upsert: true }
         );
+
         logger.info('Resultado de actualización de orden:', JSON.stringify(result, null, 2));
         return result.upsertedId || orderData.shopifyOrderId;
     } catch (error) {
@@ -248,77 +262,77 @@ async function updateOrder(orderData) {
 
 // Insertar o actualizar productos
 async function updateProducts(orderData) {
-  for (const product of orderData.orderDetails.products) {
-    try {
-      logger.info('Datos del producto a actualizar:', { 
-        productId: product.productId,
-        productData: product 
-      });
-      
-      const existingProduct = await db.collection('productModels').findOne({ 
-        productId: product.productId, 
-        orderId: orderData.shopifyOrderId 
-      });
+    const statuses = getInMemoryStatuses();
 
-      if (!existingProduct) {
-        const productData = {
-          ...product,
-          orderId: orderData.shopifyOrderId,
-          trackingNumbers: []
-        };
+    for (const product of orderData.orderDetails.products) {
+        try {
+            logger.info('Datos del producto a actualizar:', {
+                productId: product.productId,
+                productData: product
+            });
 
-        logger.info('Datos del producto a validar:', { 
-          productId: product.productId,
-          productData: productData 
-        });
-        
-        const { error, value } = validateProduct(productData);
-        if (error) {
-          const errorDetails = error.details.map(detail => ({
-            message: detail.message,
-            path: detail.path.join('.')
-          }));
-          logger.error(
-            `Error al validar el producto ${product.productId} de la orden: ${orderData.shopifyOrderId}`, 
-            { 
-              validationErrors: errorDetails,
-              productData: productData
+            // Obtener el producto existente desde MongoDB
+            const existingProduct = await db.collection('productModels').findOne({
+                productId: product.productId,
+                orderId: orderData.shopifyOrderId
+            });
+
+            // Comparar datos
+            if (existingProduct && JSON.stringify(existingProduct) === JSON.stringify(product)) {
+                logger.info(`Producto ${product.productId} ya está sincronizado. No se realizaron cambios.`);
+                continue;
             }
-          );
-        } else {
-          await db.collection('productModels').insertOne(value);
-          logger.info(`Producto ${product.productId} para la orden ${orderData.shopifyOrderId} insertado exitosamente`);
-        }
-      } else {
-        // Si el producto existe, actualiza solo los campos necesarios
-        const updateResult = await db.collection('productModels').updateOne(
-          { productId: product.productId, orderId: orderData.shopifyOrderId },
-          { 
-            $set: {
-              color: product.color,
-              size: product.size,
-              status: {
-                status: inMemoryStatuses.PRODUCT[product.status.status] ? product.status.status : 'Por Procesar', // Usar el estado si existe en inMemoryStatuses, si no, un estado default
-                description: product.status.description || 'Producto actualizado',
-                updatedAt: new Date()
-              }
+
+            // Preparar los datos del producto para insertar o actualizar
+            const productData = {
+                ...product,
+                orderId: orderData.shopifyOrderId,
+                trackingNumbers: existingProduct?.trackingNumbers || []
+            };
+
+            logger.info('Datos del producto a validar:', {
+                productId: product.productId,
+                productData: productData
+            });
+
+            // Validar el producto
+            const { error, value } = validateProduct(productData);
+            if (error) {
+                const errorDetails = error.details.map(detail => ({
+                    message: detail.message,
+                    path: detail.path.join('.')
+                }));
+                logger.error(
+                    `Error al validar el producto ${product.productId} de la orden: ${orderData.shopifyOrderId}`,
+                    {
+                        validationErrors: errorDetails,
+                        productData: productData
+                    }
+                );
+                continue;
             }
-          }
-        );
-        if (updateResult.matchedCount > 0) {
-          logger.info(`Producto ${product.productId} de la orden ${orderData.shopifyOrderId} actualizado exitosamente`);
-        } else {
-          logger.warn(`No se pudo actualizar el producto ${product.productId} para la orden ${orderData.shopifyOrderId}`);
+
+            // Insertar o actualizar el producto en MongoDB
+            const result = await db.collection('productModels').updateOne(
+                { productId: product.productId, orderId: orderData.shopifyOrderId },
+                { $set: value },
+                { upsert: true }
+            );
+
+            if (result.matchedCount > 0) {
+                logger.info(`Producto ${product.productId} de la orden ${orderData.shopifyOrderId} actualizado exitosamente.`);
+            } else if (result.upsertedCount > 0) {
+                logger.info(`Producto ${product.productId} de la orden ${orderData.shopifyOrderId} insertado exitosamente.`);
+            }
+        } catch (error) {
+            logger.error(`Error al manejar producto ${product.productId} de la orden ${orderData.shopifyOrderId}:`, {
+                error: error.message,
+                stack: error.stack
+            });
         }
-      }
-    } catch (error) {
-      logger.error(`Error al manejar producto ${product.productId} de la orden ${orderData.shopifyOrderId}:`, { 
-        error: error.message,
-        stack: error.stack
-      });
     }
-  }
 }
+
 
 // Fetch de órdenes desde Shopify
 async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null) {
@@ -399,31 +413,61 @@ async function fetchShopifyOrders(createdAtMin = null, createdAtMax = null) {
 // Job Programado para Verificar Cambios
 cron.schedule('*/10 * * * *', async () => {
     logger.info('Sincronización automática de órdenes iniciada');
+
+    // Verificación de la conexión a MongoDB
+    if (!db) {
+        logger.error('La conexión a MongoDB no está disponible. Abortando sincronización.');
+        return;
+    }
+
     try {
+        // Configurar rangos de fechas
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 días atrás
 
         const createdAtMin = thirtyDaysAgo.toISOString();
         const createdAtMax = now.toISOString();
-        
+
+        logger.info(`Consultando órdenes desde Shopify entre ${createdAtMin} y ${createdAtMax}...`);
+
+        // Obtener órdenes desde Shopify
         const orders = await fetchShopifyOrders(createdAtMin, createdAtMax);
-        
+
+        logger.info(`Órdenes obtenidas desde Shopify: ${orders.length}`);
+
+        // Procesar cada orden
         for (const shopifyOrder of orders) {
             try {
+                logger.info(`Procesando orden de Shopify ID: ${shopifyOrder.id}...`);
+
+                // Mapear datos de la orden
                 const orderData = mapShopifyOrderToMongoModel(shopifyOrder);
+
+                // Obtener la orden existente desde MongoDB
+                const existingOrder = await db.collection('orderModels').findOne({ shopifyOrderId: orderData.shopifyOrderId });
+
+                // Comparar datos
+                if (existingOrder && JSON.stringify(existingOrder) === JSON.stringify(orderData)) {
+                    logger.info(`Orden ${orderData.shopifyOrderId} ya está sincronizada. No se realizaron cambios.`);
+                    continue;
+                }
+
+                // Sincronizar datos en MongoDB
                 const orderId = await updateOrder(orderData);
                 await updateProducts(orderData);
-                logger.info(`Orden ${orderData.shopifyOrderId} sincronizada exitosamente.`);
+
+                logger.info(`Orden ${orderId} sincronizada exitosamente.`);
             } catch (error) {
-                logger.error(`Error al sincronizar la orden ${shopifyOrder.id}:`, error);
+                logger.error(`Error al procesar la orden ${shopifyOrder.id}:`, error);
             }
         }
 
-        logger.info(`Sincronización automática completada: ${orders.length} órdenes procesadas`);
+        logger.info(`Sincronización automática completada: ${orders.length} órdenes procesadas.`);
     } catch (error) {
-        logger.error('Error en la sincronización automática:', error);
+        logger.error('Error general en la sincronización automática:', error);
     }
 });
+
 
 // Endpoint para actualizar el token
 app.post('/api/update-token', (req, res) => {
@@ -524,14 +568,14 @@ app.post('/api/consolidate-products/:orderId', async (req, res) => {
         }
 
         const allProductsReceived = order.orderDetails.products.every(product => 
-            product.status.some(status => status.status === (inMemoryStatuses.PRODUCT['Recibido por Sharkletas'] ? 'Recibido por Sharkletas' : 'Recibido'))
+            product.status.some(status => status.status === (statuses.PRODUCT['Recibido por Sharkletas'] ? 'Recibido por Sharkletas' : 'Recibido'))
         );
 
         if (!allProductsReceived) {
             throw { status: 400, message: 'No todos los productos están en estado "Recibido por Sharkletas"' };
         }
 
-        const consolidatedStatus = inMemoryStatuses.PRODUCT['Consolidado'] || 'Consolidado';
+        const consolidatedStatus = statuses.PRODUCT['Consolidado'] || 'Consolidado';
         const updatedProducts = order.orderDetails.products.map(product => {
             return {
                 ...product,
@@ -570,6 +614,7 @@ app.post('/api/consolidate-products/:orderId', async (req, res) => {
 
 // Endpoint para preparar productos (fulfill items)
 app.post('/api/prepare-products/:orderId', async (req, res) => {
+    const statuses = getInMemoryStatuses();
     const { orderId } = req.params;
     const { trackingNumber } = req.body; // Esperamos que el tracking number venga en el cuerpo de la solicitud
 
@@ -579,7 +624,7 @@ app.post('/api/prepare-products/:orderId', async (req, res) => {
             return res.status(404).json({ message: 'Orden no encontrada' });
         }
 
-        const consolidatedStatus = inMemoryStatuses.PRODUCT['Consolidado'] || 'Consolidado';
+        const consolidatedStatus = statuses.PRODUCT['Consolidado'] || 'Consolidado';
         const isConsolidated = order.orderDetails.products.some(product => 
             product.status.some(status => status.status === consolidatedStatus)
         );
@@ -592,7 +637,7 @@ app.post('/api/prepare-products/:orderId', async (req, res) => {
             return res.status(400).json({ message: 'Se requiere un número de tracking' });
         }
 
-        const preparedStatus = inMemoryStatuses.ORDER['Preparado'] || 'Preparado';
+        const preparedStatus = statuses.ORDER['Preparado'] || 'Preparado';
         await db.collection('orderModels').updateOne(
             { shopifyOrderId: orderId },
             {
