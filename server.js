@@ -96,7 +96,12 @@ async function loadStatusesFromDB() {
 connectToMongoDB()
     .then(() => {
         const statuses = getInMemoryStatuses();
+        if (!statuses.ORDER || !statuses.PRODUCT) {
+            throw new Error('Los estados no están completamente cargados.');
+        }
+
         console.info('Verificando estados cargados:', JSON.stringify(statuses, null, 2));
+        
         // Importar modelos después de cargar los estados
         const { validateOrder } = require('./src/models/orderModel');
         const { validateProduct } = require('./src/models/productModels');
@@ -147,8 +152,91 @@ app.get('/health', (req, res) => {
     res.status(200).send('Servidor activo y saludable');
 });
 
+//Función para comparar datos de MongoDB Atlas vs Shopify API
+/**
+ * Compara los datos de una orden de Shopify con los de MongoDB.
+ * @param {Object} shopifyOrder - Datos de la orden obtenidos desde Shopify.
+ * @param {Object} mongoOrder - Datos de la orden almacenados en MongoDB.
+ * @returns {boolean} - Retorna true si los datos comparables son iguales, false si hay diferencias.
+ */
+function compareOrderData(shopifyOrder, mongoOrder) {
+    // Definir los campos comparables de primer nivel
+    const comparableFields = [
+        'shopifyOrderId',
+        'shopifyOrderNumber',
+        'shopifyOrderLink',
+        'paymentStatus',
+        'location',
+        'createdAt'
+    ];
+
+    // Función para comparar objetos simples
+    const compareObjects = (obj1, obj2, fields) => {
+        for (const field of fields) {
+            if (obj1[field] !== obj2[field]) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    // Comparar campos de primer nivel
+    if (!compareObjects(shopifyOrder, mongoOrder, comparableFields)) {
+        return false;
+    }
+
+    // Comparar trackingInfo.orderTracking
+    if (shopifyOrder.trackingInfo?.orderTracking && mongoOrder.trackingInfo?.orderTracking) {
+        const trackingFields = ['trackingNumber', 'carrier'];
+        if (!compareObjects(shopifyOrder.trackingInfo.orderTracking, mongoOrder.trackingInfo.orderTracking, trackingFields)) {
+            return false;
+        }
+    }
+
+    // Comparar orderDetails.products
+    if (Array.isArray(shopifyOrder.orderDetails?.products) && Array.isArray(mongoOrder.orderDetails?.products)) {
+        if (shopifyOrder.orderDetails.products.length !== mongoOrder.orderDetails.products.length) {
+            return false;
+        }
+
+        for (let i = 0; i < shopifyOrder.orderDetails.products.length; i++) {
+            const shopifyProduct = shopifyOrder.orderDetails.products[i];
+            const mongoProduct = mongoOrder.orderDetails.products[i];
+
+            // Construir variant_title a partir de color y size en MongoDB
+            const mongoVariantTitle = `${mongoProduct.color || ''} / ${mongoProduct.size || ''}`.trim();
+
+            // Campos comparables para productos
+            const productFields = [
+                'productId',
+                'name',
+                'quantity',
+                'weight',
+                'price',
+                'vendor'
+            ];
+
+            // Comparar los campos simples
+            if (!compareObjects(shopifyProduct, mongoProduct, productFields)) {
+                return false;
+            }
+
+            // Comparar el variant_title de Shopify con los campos combinados de MongoDB
+            if (shopifyProduct.variant_title !== mongoVariantTitle) {
+                return false;
+            }
+        }
+    }
+
+    // Si todas las comparaciones son iguales, retornar true
+    return true;
+}
+
 // Función para mapear una orden de Shopify a modelo de MongoDB
-function mapShopifyOrderToMongoModel(shopifyOrder) {
+function mapShopifyOrderToMongoModel(shopifyOrder, validateOrder) {
+    if (!validateOrder) {
+        throw new Error('validateOrder no está definido');
+    }
     const now = new Date();
     const statuses = getInMemoryStatuses();
 
@@ -174,8 +262,8 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
         }],
         orderDetails: {
             products: (shopifyOrder.line_items || []).map((item) => {
-                const [color, sizeInfo] = (item.variant_title || '').split('/').map(v => v.trim());
-                const size = sizeInfo.split('|')[0].trim();
+                const [color, sizeInfo] = (item.variant_title ? item.variant_title.split('/').map(v => v.trim()) : ['', '']);
+                const size = sizeInfo ? sizeInfo.split('|')[0].trim() : '';
 
                 return {
                     productId: item.id ? item.id.toString() : `temp_${item.variant_id || Date.now()}`,
@@ -217,16 +305,14 @@ function mapShopifyOrderToMongoModel(shopifyOrder) {
 
 // Insertar o actualizar orden
 async function updateOrder(orderData) {
-    const statuses = getInMemoryStatuses();
-
     try {
         logger.info('Datos de la orden a actualizar:', JSON.stringify(orderData, null, 2));
 
         // Obtener la orden existente desde MongoDB
         const existingOrder = await db.collection('orderModels').findOne({ shopifyOrderId: orderData.shopifyOrderId });
 
-        // Comparar datos
-        if (existingOrder && JSON.stringify(existingOrder) === JSON.stringify(orderData)) {
+        // Comparar datos usando compareOrderData
+        if (existingOrder && compareOrderData(orderData, existingOrder)) {
             logger.info(`Orden ${orderData.shopifyOrderId} ya está sincronizada. No se realizaron cambios.`);
             return existingOrder.shopifyOrderId;
         }
@@ -234,21 +320,7 @@ async function updateOrder(orderData) {
         // Actualizar la orden si hay diferencias
         const result = await db.collection('orderModels').updateOne(
             { shopifyOrderId: orderData.shopifyOrderId },
-            { 
-                $set: {
-                    ...orderData,
-                    currentStatus: {
-                        status: statuses.ORDER[orderData.currentStatus.status] ? orderData.currentStatus.status : Object.keys(statuses.ORDER)[0],
-                        description: orderData.currentStatus.description,
-                        updatedAt: orderData.currentStatus.updatedAt || new Date()
-                    },
-                    statusHistory: orderData.statusHistory.map(status => ({
-                        status: statuses.ORDER[status.status] ? status.status : Object.keys(statuses.ORDER)[0],
-                        description: status.description,
-                        updatedAt: status.updatedAt || new Date()
-                    }))
-                }
-            },
+            { $set: orderData },
             { upsert: true }
         );
 
@@ -260,10 +332,12 @@ async function updateOrder(orderData) {
     }
 }
 
-// Insertar o actualizar productos
-async function updateProducts(orderData) {
-    const statuses = getInMemoryStatuses();
 
+// Insertar o actualizar productos
+async function updateProducts(orderData, validateProduct) {
+    if (!validateProduct) {
+        throw new Error('validateProduct no está definido');
+    }
     for (const product of orderData.orderDetails.products) {
         try {
             logger.info('Datos del producto a actualizar:', {
@@ -277,8 +351,8 @@ async function updateProducts(orderData) {
                 orderId: orderData.shopifyOrderId
             });
 
-            // Comparar datos
-            if (existingProduct && JSON.stringify(existingProduct) === JSON.stringify(product)) {
+            // Comparar datos usando compareOrderData
+            if (existingProduct && compareOrderData(product, existingProduct)) {
                 logger.info(`Producto ${product.productId} ya está sincronizado. No se realizaron cambios.`);
                 continue;
             }
@@ -332,6 +406,7 @@ async function updateProducts(orderData) {
         }
     }
 }
+
 
 
 // Fetch de órdenes desde Shopify
@@ -421,7 +496,6 @@ cron.schedule('*/10 * * * *', async () => {
     }
 
     try {
-        // Configurar rangos de fechas
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 días atrás
 
@@ -430,31 +504,28 @@ cron.schedule('*/10 * * * *', async () => {
 
         logger.info(`Consultando órdenes desde Shopify entre ${createdAtMin} y ${createdAtMax}...`);
 
-        // Obtener órdenes desde Shopify
         const orders = await fetchShopifyOrders(createdAtMin, createdAtMax);
-
         logger.info(`Órdenes obtenidas desde Shopify: ${orders.length}`);
 
-        // Procesar cada orden
+        // Importar modelos dinámicamente si no está disponible globalmente
+        const { validateOrder } = require('./src/models/orderModel');
+        const { validateProduct } = require('./src/models/productModels');
+
         for (const shopifyOrder of orders) {
             try {
-                logger.info(`Procesando orden de Shopify ID: ${shopifyOrder.id}...`);
-
-                // Mapear datos de la orden
-                const orderData = mapShopifyOrderToMongoModel(shopifyOrder);
-
-                // Obtener la orden existente desde MongoDB
+                // Pasar validateOrder como argumento a mapShopifyOrderToMongoModel
+                const orderData = mapShopifyOrderToMongoModel(shopifyOrder, validateOrder);
                 const existingOrder = await db.collection('orderModels').findOne({ shopifyOrderId: orderData.shopifyOrderId });
 
-                // Comparar datos
-                if (existingOrder && JSON.stringify(existingOrder) === JSON.stringify(orderData)) {
+                // Comparar datos usando compareOrderData
+                if (existingOrder && compareOrderData(orderData, existingOrder)) {
                     logger.info(`Orden ${orderData.shopifyOrderId} ya está sincronizada. No se realizaron cambios.`);
                     continue;
                 }
 
-                // Sincronizar datos en MongoDB
-                const orderId = await updateOrder(orderData);
-                await updateProducts(orderData);
+                // Actualizar la orden y sus productos
+                const orderId = await updateOrder(orderData, validateProduct);
+                await updateProducts(orderData, validateProduct);
 
                 logger.info(`Orden ${orderId} sincronizada exitosamente.`);
             } catch (error) {
@@ -467,7 +538,6 @@ cron.schedule('*/10 * * * *', async () => {
         logger.error('Error general en la sincronización automática:', error);
     }
 });
-
 
 // Endpoint para actualizar el token
 app.post('/api/update-token', (req, res) => {
@@ -530,15 +600,19 @@ app.post('/api/sync-orders', async (req, res) => {
         logger.info('Shopify Access Token:', process.env.SHOPIFY_ACCESS_TOKEN);
         logger.info('Shopify Store URL:', process.env.SHOPIFY_STORE_URL);
 
+        const { validateOrder } = require('./src/models/orderModel');
+        const { validateProduct } = require('./src/models/productModels');
+
         const allOrders = await fetchShopifyOrders(createdAtMin, createdAtMax);
         logger.info(`Número de órdenes obtenidas de Shopify: ${allOrders.length}`);
 
         let processedCount = 0;
         for (const shopifyOrder of allOrders) {
             try {
-                const orderData = mapShopifyOrderToMongoModel(shopifyOrder);
+                // Pasar validateOrder aquí
+                const orderData = mapShopifyOrderToMongoModel(shopifyOrder, validateOrder);
                 await updateOrder(orderData);
-                await updateProducts(orderData);
+                await updateProducts(orderData, validateProduct);
                 processedCount++;
             } catch (error) {
                 logger.error(`Error al procesar la orden ${shopifyOrder.id}:`, error);
@@ -556,11 +630,14 @@ app.post('/api/sync-orders', async (req, res) => {
 // Endpoint para consolidar productos
 app.post('/api/consolidate-products/:orderId', async (req, res) => {
     const { orderId } = req.params;
-    const { carrier } = req.body; // Esperamos que el frontend envíe el carrier seleccionado
+    const { carrier } = req.body; // ...
 
     const session = db.startSession();
     try {
         session.startTransaction();
+
+        // Obtener estados en memoria
+        const statuses = getInMemoryStatuses();
 
         const order = await db.collection('orderModels').findOne({ shopifyOrderId: orderId });
         if (!order) {
