@@ -10,6 +10,7 @@ dataValidationTest.js
 order5685481013436.json
 mongoStatusCreation.js
 package-lock.json
+trackingTestScript.js
 
 # Logs
 npm-debug.log*

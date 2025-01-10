@@ -41,6 +41,7 @@ app.use(cors({
 // Middlewares
 app.use(express.json());
 
+
 app.use((req, res, next) => {
     res.setHeader("Content-Security-Policy", "default-src 'self';");
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -110,6 +111,53 @@ connectToMongoDB()
 
         console.info('Modelos cargados exitosamente.');
 
+        // Registrar el endpoint del webhook de Ship24 ahora que la conexión a MongoDB está establecida
+        app.post('/webhook/ship24', async (req, res) => {
+            if (!db) {
+                console.error('Base de datos no disponible en el webhook');
+                return res.status(503).send('Servicio no disponible');
+            }
+
+            try {
+                const update = req.body;
+                console.log('Webhook recibido:', update);
+
+                // Ajusta la extracción de datos según el payload real de Ship24
+                const trackingNumber = update.trackingNumber || update.tracking_number;
+                const carrier = update.carrier || update.courierCode || 'unknown';
+                const status = update.status || 'desconocido';
+
+                // Insertar el evento de actualización en la colección de historial
+                await db.collection('trackingHistories').insertOne({
+                    trackingNumber,
+                    carrier,
+                    status,
+                    update,             // Guardar el payload completo para referencia
+                    receivedAt: new Date()
+                });
+
+                // Actualizar el estado actual en la colección principal
+                await db.collection('trackingNumbers').updateOne(
+                    { trackingNumber },
+                    {
+                        $set: {
+                            status,
+                            lastUpdated: new Date()
+                        }
+                    }
+                );
+
+                res.status(200).send('OK');
+            } catch (error) {
+                console.error('Error al procesar webhook:', error);
+                res.status(500).send('Error al procesar webhook');
+            }
+        });
+
+        // Registrar rutas que dependen de la base de datos
+        const trackingRoutes = require('./src/routes/trackingRoutes');
+        app.use('/api/tracking', trackingRoutes);
+
         // Iniciar el servidor
         app.listen(port, () => {
             console.info(`Servidor corriendo en http://localhost:${port}`);
@@ -134,7 +182,6 @@ const logger = winston.createLogger({
         new winston.transports.File({ filename: 'combined.log' })
     ]
 });
-
 
 const rateLimit = require('express-rate-limit');
 
